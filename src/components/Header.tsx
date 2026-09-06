@@ -19,6 +19,7 @@ import { useItems } from '../context/ItemContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { usePwaInstall } from '../lib/usePwaInstall';
+import { UniMapLogo } from './UniMapLogo';
 
 interface HeaderProps {
   viewMode: ViewMode;
@@ -91,9 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-2.5 shrink-0 cursor-pointer select-none"
             title="Scroll to top"
           >
-            <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-primary-text shadow-sm">
-              <Compass className="w-4 h-4" />
-            </div>
+            <UniMapLogo size={32} />
             <span className="font-semibold text-base tracking-tight text-text-main hidden sm:inline">
               UniMap
             </span>

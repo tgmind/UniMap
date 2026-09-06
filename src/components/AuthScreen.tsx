@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { UniMapLogo } from './UniMapLogo';
 
 interface AuthScreenProps {}
 
@@ -65,9 +66,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
       {/* Top Header */}
       <header className="w-full max-w-6xl mx-auto px-4 sm:px-8 py-6 flex items-center justify-between">
         <div className="flex items-center gap-2.5 cursor-pointer select-none">
-          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-primary-text shadow-sm">
-            <Compass className="w-4 h-4" />
-          </div>
+          <UniMapLogo size={36} />
           <span className="font-semibold text-base tracking-tight text-text-main">
             UniMap
           </span>

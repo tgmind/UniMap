@@ -55,17 +55,15 @@ export const MessengerComposer: React.FC = () => {
     if (htmlInputRef.current) htmlInputRef.current.value = '';
   };
 
-  // Active clipboard paste handler to seamlessly capture multiline text, code snippets, and URLs
+  // Active clipboard paste handler to capture multiline text, code snippets, and URLs seamlessly
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pasted = e.clipboardData.getData('text');
     if (!pasted) return;
 
-    // Check if pasted content has multiple lines
     if (pasted.includes('\n') || pasted.includes('\r')) {
       e.preventDefault();
       setPastedMultilineContent(pasted);
 
-      // Auto-detect code patterns (syntax keywords, brackets, tags)
       const isCodePattern =
         /[{};()=><\[\]]/.test(pasted) &&
         /(function|class|import|export|const|let|var|def |<\w+>|return)/i.test(pasted);
@@ -74,14 +72,12 @@ export const MessengerComposer: React.FC = () => {
         setIsCodeMode(true);
       }
 
-      // Display clean preview title in the single line input
       const lines = pasted.split(/\r?\n/).filter((l) => l.trim().length > 0);
       const firstLine = lines[0]?.trim() || '';
       setText(firstLine.slice(0, 60));
     }
   };
 
-  // Detect URL inside text
   const urlRegex = /^(https?:\/\/[^\s]+|www\.[^\s]+)$/i;
   const isPureUrl = urlRegex.test(text.trim());
 
@@ -114,7 +110,6 @@ export const MessengerComposer: React.FC = () => {
           title = 'Web Link';
         }
       } else {
-        // Study Note
         finalType = 'text';
         title = activeText.split('\n')[0].slice(0, 50).trim() || 'Study Note';
       }
@@ -130,7 +125,6 @@ export const MessengerComposer: React.FC = () => {
         tags: [finalType.toUpperCase(), 'Synced'],
       });
 
-      // Reset composer
       setText('');
       clearAttachment();
     } catch (err) {
@@ -204,11 +198,11 @@ export const MessengerComposer: React.FC = () => {
         </div>
       )}
 
-      {/* Compact Single-Lined Composer Box */}
-      <div className="rounded-2xl bg-surface/95 backdrop-blur-xl border border-border p-1.5 sm:p-2 shadow-lg focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15 transition-all">
+      {/* Floating Capsule Composer Box */}
+      <div className="rounded-full bg-surface/90 backdrop-blur-xl border border-border/80 px-2 py-1.5 shadow-lg focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15 transition-all">
         {/* Active Attachment or Pasted Multiline/Code Preview Chip */}
         {(attachedFile || isCodeMode || pastedMultilineContent) && (
-          <div className="mb-1.5 px-2.5 py-1 rounded-xl bg-surface-elevated border border-border flex items-center justify-between gap-2 text-xs animate-fade-in">
+          <div className="mb-1 mx-2 px-2.5 py-1 rounded-lg bg-surface-elevated border border-border/60 flex items-center justify-between gap-2 text-xs animate-fade-in">
             <div className="flex items-center gap-2 min-w-0">
               {attachedFileType === 'media' && <ImageIcon className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
               {attachedFileType === 'html' && <Globe className="w-3.5 h-3.5 text-sky-500 shrink-0" />}
@@ -216,7 +210,7 @@ export const MessengerComposer: React.FC = () => {
               {pastedMultilineContent && !isCodeMode && !attachedFile && (
                 <FileText className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               )}
-              <span className="font-medium text-text-main truncate text-[11px] sm:text-xs">
+              <span className="font-medium text-text-main truncate text-[11px]">
                 {attachedFile
                   ? attachedFile.name
                   : pastedMultilineContent
@@ -233,24 +227,24 @@ export const MessengerComposer: React.FC = () => {
               type="button"
               onClick={clearAttachment}
               title="Remove attachment or pasted snippet"
-              className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-surface transition-colors"
+              className="p-1 rounded-md text-text-muted hover:text-text-main hover:bg-surface transition-colors"
             >
               <X className="w-3 h-3" />
             </button>
           </div>
         )}
 
-        {/* Compact Single-Line Input Bar Row */}
+        {/* Input Bar Row */}
         <form onSubmit={handleSend} className="flex items-center gap-1.5 sm:gap-2">
           {/* Attachment Toggle Button */}
           <button
             type="button"
             onClick={() => setShowAttachMenu(!showAttachMenu)}
             title="Attach Media, HTML app, or Code"
-            className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all active:scale-95 shrink-0 ${
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 shrink-0 ${
               showAttachMenu || attachedFile || isCodeMode
-                ? 'bg-primary/10 border-primary text-primary'
-                : 'text-text-muted hover:text-text-main bg-surface-elevated border-border'
+                ? 'bg-primary text-primary-text'
+                : 'text-text-muted hover:text-text-main hover:bg-surface-elevated'
             }`}
           >
             <Paperclip className="w-4 h-4" />
@@ -273,14 +267,14 @@ export const MessengerComposer: React.FC = () => {
                   ? 'Paste code or type snippet...'
                   : attachedFile
                   ? 'Add caption for file...'
-                  : 'Type note, paste links, drop text or code...'
+                  : 'Type note, drop link, paste code...'
               }
-              className={`w-full h-9 bg-transparent border-0 text-xs sm:text-sm text-text-main placeholder-text-faint focus:outline-none px-2 font-normal truncate ${
+              className={`w-full h-8 bg-transparent border-0 text-xs sm:text-sm text-text-main placeholder-text-faint focus:outline-none px-2 font-normal truncate ${
                 isCodeMode ? 'font-mono text-xs' : ''
               }`}
             />
 
-            {/* Clear Text Button (visible when text is entered) */}
+            {/* Clear Text Button */}
             {text && (
               <button
                 type="button"
@@ -309,7 +303,7 @@ export const MessengerComposer: React.FC = () => {
             type="submit"
             disabled={isSending || (!text.trim() && !attachedFile && !pastedMultilineContent)}
             title="Send to UniMap Vault (Enter)"
-            className="w-9 h-9 rounded-xl bg-primary hover:bg-primary-hover text-primary-text flex items-center justify-center shadow-sm disabled:opacity-30 disabled:scale-100 active:scale-95 transition-all shrink-0"
+            className="w-8 h-8 rounded-full bg-primary hover:bg-primary-hover text-primary-text flex items-center justify-center shadow-xs disabled:opacity-30 disabled:scale-100 active:scale-95 transition-all shrink-0"
           >
             <ArrowUp className="w-4 h-4 stroke-[2.5]" />
           </button>
