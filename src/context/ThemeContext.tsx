@@ -8,54 +8,45 @@ interface ThemeDefinition {
   badgeBg: string;
   primaryColor: string;
   accentColor: string;
-  fontStyle: string;
+  isDark: boolean;
 }
 
 export const THEMES: ThemeDefinition[] = [
   {
-    id: 'midnight',
-    name: 'Midnight Obsidian',
-    tagline: 'OLED Pure Black & Electric Violet',
-    badgeBg: '#050508',
-    primaryColor: '#8B5CF6',
-    accentColor: '#06B6D4',
-    fontStyle: 'font-sans',
-  },
-  {
-    id: 'tokyo',
-    name: 'Tokyo Night',
-    tagline: 'Indigo Cyber & Soft Lavender',
-    badgeBg: '#0F111A',
-    primaryColor: '#6366F1',
-    accentColor: '#A855F7',
-    fontStyle: 'font-sans',
-  },
-  {
-    id: 'scholar',
-    name: 'Paper Scholar',
-    tagline: 'Warm Parchment & Amber Editorial',
-    badgeBg: '#181614',
-    primaryColor: '#D97706',
-    accentColor: '#EAB308',
-    fontStyle: 'font-serif',
-  },
-  {
-    id: 'aurora',
-    name: 'Nordic Aurora',
-    tagline: 'Deep Slate Glass & Mint Emerald',
-    badgeBg: '#070D14',
-    primaryColor: '#10B981',
+    id: 'slate',
+    name: 'Google Slate',
+    tagline: 'Refined Material Dark & Adaptive Blue',
+    badgeBg: '#0E1015',
+    primaryColor: '#3B82F6',
     accentColor: '#38BDF8',
-    fontStyle: 'font-sans',
+    isDark: true,
   },
   {
-    id: 'terminal',
-    name: 'Retro Terminal',
-    tagline: 'Monochrome Neo-Brutalist & Phosphor Green',
+    id: 'meta',
+    name: 'Meta Horizon',
+    tagline: 'Deep Midnight Navy & Sapphire Accent',
+    badgeBg: '#0B0F19',
+    primaryColor: '#2563EB',
+    accentColor: '#60A5FA',
+    isDark: true,
+  },
+  {
+    id: 'apple',
+    name: 'Apple Onyx',
+    tagline: 'Pure Monochrome Titanium & OLED Pitch',
     badgeBg: '#000000',
-    primaryColor: '#22C55E',
-    accentColor: '#F59E0B',
-    fontStyle: 'font-mono',
+    primaryColor: '#FFFFFF',
+    accentColor: '#A1A1AA',
+    isDark: true,
+  },
+  {
+    id: 'light',
+    name: 'Editorial Canvas',
+    tagline: 'Minimalist Clean Paper & Slate Ink',
+    badgeBg: '#F8F9FA',
+    primaryColor: '#0F172A',
+    accentColor: '#2563EB',
+    isDark: false,
   },
 ];
 
@@ -69,11 +60,17 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    return (localStorage.getItem('unimap_theme') as ThemeMode) || 'midnight';
+    const saved = localStorage.getItem('unimap_theme') as ThemeMode;
+    if (saved && THEMES.some((t) => t.id === saved)) return saved;
+    return 'slate';
   });
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    if (theme === 'slate') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
     localStorage.setItem('unimap_theme', theme);
   }, [theme]);
 

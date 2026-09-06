@@ -1,4 +1,4 @@
-export type ThemeMode = 'midnight' | 'tokyo' | 'scholar' | 'aurora' | 'terminal';
+export type ThemeMode = 'slate' | 'meta' | 'apple' | 'light';
 
 export type ItemType = 'text' | 'link' | 'media' | 'html' | 'code';
 

@@ -3,7 +3,6 @@ import {
   Lock,
   Mail,
   User,
-  Sparkles,
   ArrowRight,
   Shield,
   Laptop,
@@ -14,6 +13,7 @@ import {
   Zap,
   CheckCircle2,
   AlertCircle,
+  Compass,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -47,7 +47,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
         if (res.error) {
           setErrorMsg(res.error);
         } else {
-          setSuccessMsg('Account created successfully! Check your email to confirm, or sign in.');
+          setSuccessMsg('Account created successfully! Check your email to confirm or sign in.');
         }
       } else {
         const res = await signIn(email, password);
@@ -63,37 +63,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-text-main flex flex-col justify-between selection:bg-primary selection:text-white relative overflow-hidden">
-      {/* Subtle Background Glows */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-accent/10 rounded-full blur-[120px] pointer-events-none" />
-
-      {/* Top Navbar */}
-      <header className="w-full max-w-7xl mx-auto px-4 sm:px-8 py-5 flex items-center justify-between z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-accent p-0.5 shadow-glow-sm">
-            <div className="w-full h-full bg-background rounded-[14px] flex items-center justify-center">
-              <img src="/logo.svg" alt="UniMap" className="w-7 h-7" />
-            </div>
+    <div className="min-h-screen bg-background text-text-main flex flex-col justify-between selection:bg-primary selection:text-white">
+      {/* Top Header */}
+      <header className="w-full max-w-6xl mx-auto px-4 sm:px-8 py-6 flex items-center justify-between">
+        <div className="flex items-center gap-2.5 cursor-pointer select-none">
+          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-primary-text shadow-sm">
+            <Compass className="w-4 h-4" />
           </div>
-          <div>
-            <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-text-main to-text-muted bg-clip-text text-transparent">
-              UniMap
-            </span>
-            <span className="text-[10px] ml-2 font-mono uppercase px-2 py-0.5 rounded-full border border-border bg-surface text-accent font-semibold">
-              Cross-Device
-            </span>
-          </div>
+          <span className="font-semibold text-base tracking-tight text-text-main">
+            UniMap
+          </span>
         </div>
 
         {/* Theme Picker */}
         <div className="relative">
           <button
             onClick={() => setShowThemeMenu(!showThemeMenu)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface border border-border text-xs font-semibold text-text-muted hover:text-text-main transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-elevated/70 hover:bg-surface-elevated border border-border text-xs font-medium text-text-muted hover:text-text-main transition-colors"
           >
             <span
-              className="w-3 h-3 rounded-full"
+              className="w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: activeThemeDef.primaryColor }}
             />
             <span className="hidden sm:inline">{activeThemeDef.name}</span>
@@ -102,107 +91,98 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
         </div>
       </header>
 
-      {/* Main Grid: Hero + Auth Card */}
-      <main className="w-full max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center z-10 flex-1">
-        {/* Left: Product Value & Hero */}
+      {/* Main Grid */}
+      <main className="w-full max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-16 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center flex-1">
+        {/* Left Hero */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-elevated border border-border text-xs text-text-muted">
-            <Sparkles className="w-3.5 h-3.5 text-accent" />
-            <span>Multi-device synchronization for students & scholars</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-text-main leading-[1.15]">
-            One Universal Map for all your{' '}
-            <span className="bg-gradient-to-r from-primary via-accent to-purple-400 bg-clip-text text-transparent">
-              devices & study data.
+          <div className="space-y-3">
+            <span className="text-xs font-medium uppercase tracking-wider text-text-faint font-mono">
+              Universal Study Sync
             </span>
-          </h1>
-
-          <p className="text-sm sm:text-base text-text-muted max-w-xl leading-relaxed">
-            Instantly sync lecture notes, textbook equations, rich bookmarks, code snippets, and live HTML calculators across Windows, Linux, Android tablets, and mobile phones.
-          </p>
-
-          {/* Feature Highlights Pill Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-            <div className="p-3.5 rounded-2xl bg-surface/80 border border-border flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0">
-                <Globe className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-text-main">Click-to-Run HTML</p>
-                <p className="text-[11px] text-text-muted">Run HTML files directly in your browser with full scripts</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-surface/80 border border-border flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
-                <HardDrive className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-text-main">SmartCompress Zero-Blur</p>
-                <p className="text-[11px] text-text-muted">2.5K high-res clarity for equations at 95% space saving</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-surface/80 border border-border flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-                <Zap className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-text-main">Realtime Sub-30ms Sync</p>
-                <p className="text-[11px] text-text-muted">Updates on your tablet reflect immediately on your PC</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-surface/80 border border-border flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
-                <Shield className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-text-main">Device Fleet & QR Login</p>
-                <p className="text-[11px] text-text-muted">Manage all hardware sessions and log in via QR code</p>
-              </div>
-            </div>
+            <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-text-main text-wrap-balance leading-tight">
+              A unified workspace for all your devices and study materials.
+            </h1>
+            <p className="text-sm sm:text-base text-text-muted max-w-lg leading-relaxed pt-1">
+              Synchronize lecture notes, textbook equations, code snippets, bookmarks, and interactive HTML files in real time across Windows, Linux, Android tablets, and mobile phones.
+            </p>
           </div>
 
-          {/* Supported Hardware Icons */}
-          <div className="pt-2 flex items-center gap-6 text-xs text-text-muted">
-            <span className="font-semibold text-text-main">Works everywhere:</span>
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 hover:text-text-main transition-colors">
-                <Laptop className="w-4 h-4 text-primary" /> Windows & Linux
-              </span>
-              <span className="flex items-center gap-1.5 hover:text-text-main transition-colors">
-                <Tablet className="w-4 h-4 text-accent" /> Android Tablet & iPad
-              </span>
-              <span className="flex items-center gap-1.5 hover:text-text-main transition-colors">
-                <Smartphone className="w-4 h-4 text-emerald-400" /> Mobile PWA
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Auth Card */}
-        <div className="lg:col-span-5">
-          <div className="p-6 sm:p-8 rounded-3xl bg-surface border border-border shadow-2xl backdrop-blur-xl relative">
-            <div className="mb-6">
-              <h2 className="text-xl font-bold text-text-main">
-                {isSignUp ? 'Create your UniMap Account' : 'Welcome Back'}
-              </h2>
-              <p className="text-xs text-text-muted mt-1">
-                {isSignUp
-                  ? 'Sign up once to sync your data across all your devices.'
-                  : 'Sign in to access your universal data map.'}
+          {/* Clean 4-Grid Highlights */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+            <div className="p-4 rounded-2xl bg-surface border border-border space-y-1">
+              <div className="flex items-center gap-2 text-text-main font-semibold text-xs">
+                <Globe className="w-4 h-4 text-accent" />
+                <span>Click-to-Run HTML</span>
+              </div>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Run HTML documents and calculators directly in your browser.
               </p>
             </div>
 
-            {/* Mode Switcher */}
-            <div className="flex p-1 rounded-xl bg-surface-elevated border border-border mb-5">
+            <div className="p-4 rounded-2xl bg-surface border border-border space-y-1">
+              <div className="flex items-center gap-2 text-text-main font-semibold text-xs">
+                <HardDrive className="w-4 h-4 text-primary" />
+                <span>Zero-Blur SmartCompress</span>
+              </div>
+              <p className="text-xs text-text-muted leading-relaxed">
+                2.5K high-res clarity for textbook equations with 95% space savings.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-surface border border-border space-y-1">
+              <div className="flex items-center gap-2 text-text-main font-semibold text-xs">
+                <Zap className="w-4 h-4 text-amber-400" />
+                <span>Sub-30ms Realtime Sync</span>
+              </div>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Edits on your tablet appear instantly on your desktop.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-surface border border-border space-y-1">
+              <div className="flex items-center gap-2 text-text-main font-semibold text-xs">
+                <Shield className="w-4 h-4 text-emerald-400" />
+                <span>Device Fleet & QR Login</span>
+              </div>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Manage all hardware sessions and log in via 1-tap QR codes.
+              </p>
+            </div>
+          </div>
+
+          {/* Supported Hardware Bar */}
+          <div className="flex items-center gap-5 pt-3 text-xs text-text-faint">
+            <span className="flex items-center gap-1.5">
+              <Laptop className="w-4 h-4" /> Windows & Linux
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Tablet className="w-4 h-4" /> Tablets & iPads
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Smartphone className="w-4 h-4" /> Mobile PWA
+            </span>
+          </div>
+        </div>
+
+        {/* Right Form */}
+        <div className="lg:col-span-5">
+          <div className="p-7 sm:p-8 rounded-2xl bg-surface border border-border shadow-card space-y-6">
+            <div>
+              <h2 className="text-lg font-bold text-text-main">
+                {isSignUp ? 'Create your Account' : 'Sign In'}
+              </h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                {isSignUp ? 'Sign up once to access your study vault anywhere.' : 'Enter your credentials to access your map.'}
+              </p>
+            </div>
+
+            {/* Segmented Mode Selector */}
+            <div className="flex p-1 rounded-xl bg-surface-elevated border border-border">
               <button
                 type="button"
                 onClick={() => { setIsSignUp(false); setErrorMsg(''); }}
-                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-                  !isSignUp ? 'bg-primary text-primary-text shadow-sm' : 'text-text-muted hover:text-text-main'
+                className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  !isSignUp ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
                 }`}
               >
                 Sign In
@@ -210,43 +190,44 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
               <button
                 type="button"
                 onClick={() => { setIsSignUp(true); setErrorMsg(''); }}
-                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-                  isSignUp ? 'bg-primary text-primary-text shadow-sm' : 'text-text-muted hover:text-text-main'
+                className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  isSignUp ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
                 }`}
               >
-                Create Account
+                Sign Up
               </button>
             </div>
 
-            {/* Error & Success Messages */}
+            {/* Error Message */}
             {errorMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
-                <span className="flex-1">{errorMsg}</span>
+                <span className="flex-1 text-break-word">{errorMsg}</span>
               </div>
             )}
 
+            {/* Success Message */}
             {successMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span className="flex-1">{successMsg}</span>
+                <span className="flex-1 text-break-word">{successMsg}</span>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignUp && (
                 <div>
-                  <label className="block text-xs font-semibold text-text-main mb-1.5">
-                    Your Name / Student ID
+                  <label className="block text-xs font-medium text-text-main mb-1.5">
+                    Your Name
                   </label>
                   <div className="relative">
-                    <User className="w-4 h-4 text-text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <User className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       placeholder="e.g. Alex"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full bg-surface-elevated border border-border rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none focus:border-primary transition-colors"
+                      className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl pl-10 pr-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
                       required
                     />
                   </div>
@@ -254,34 +235,34 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-text-main mb-1.5">
-                  Email Address
+                <label className="block text-xs font-medium text-text-main mb-1.5">
+                  Email
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="email"
                     placeholder="student@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-surface-elevated border border-border rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none focus:border-primary transition-colors"
+                    className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl pl-10 pr-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-text-main mb-1.5">
+                <label className="block text-xs font-medium text-text-main mb-1.5">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Lock className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="password"
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-surface-elevated border border-border rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none focus:border-primary transition-colors"
+                    className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl pl-10 pr-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
                     required
                   />
                 </div>
@@ -290,21 +271,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3 rounded-xl bg-primary hover:bg-primary-hover text-primary-text text-xs font-bold shadow-glow-sm transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+                className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-primary-text text-xs font-semibold shadow-sm transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 pt-2.5"
               >
-                <span>{isSubmitting ? 'Processing...' : isSignUp ? 'Create My Vault' : 'Sign In to UniMap'}</span>
-                <ArrowRight className="w-4 h-4" />
+                <span>{isSubmitting ? 'Processing...' : isSignUp ? 'Create Account' : 'Sign In'}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </form>
 
-            {/* Offline / Guest Mode Fallback */}
-            <div className="mt-5 pt-5 border-t border-border/60 text-center">
+            <div className="pt-2 text-center">
               <button
                 type="button"
                 onClick={onEnterGuestMode}
-                className="text-xs text-text-muted hover:text-text-main transition-colors"
+                className="text-xs text-text-muted hover:text-text-main transition-colors underline"
               >
-                Or continue in <span className="font-semibold text-accent underline">Local Offline Mode</span>
+                Continue in Local Offline Mode
               </button>
             </div>
           </div>
@@ -312,8 +292,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t border-border/50 py-4 text-center text-[11px] text-text-muted z-10">
-        UniMap Universal Cross-Device Data Map • 100% Free Lifetime Infrastructure
+      <footer className="w-full border-t border-border/40 py-5 text-center text-xs text-text-faint">
+        UniMap • Universal Cross-Device Data Map
       </footer>
     </div>
   );

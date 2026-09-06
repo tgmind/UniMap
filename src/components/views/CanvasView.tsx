@@ -1,8 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useItems } from '../../context/ItemContext';
-import { UniItem } from '../../types';
 import { ItemCard } from '../ItemCard';
-import { ZoomIn, ZoomOut, RotateCcw, Move, Compass, Sparkles } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Move, Compass } from 'lucide-react';
 
 interface CanvasViewProps {
   onOpenMedia: (url: string, title: string) => void;
@@ -19,7 +18,6 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    // If clicked on canvas background, start panning
     if (e.target === containerRef.current || (e.target as HTMLElement).classList.contains('canvas-bg')) {
       setIsPanning(true);
       setDragOffset({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -33,7 +31,6 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
         y: e.clientY - dragOffset.y,
       });
     } else if (dragItem) {
-      // Reposition dragged card
       const item = items.find((i) => i.id === dragItem);
       if (item && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -61,43 +58,43 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
   };
 
   return (
-    <div className="relative w-full h-[calc(100vh-8.5rem)] rounded-3xl overflow-hidden border border-border bg-background select-none">
-      {/* Floating Canvas Controls */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/90 backdrop-blur-xl border border-border shadow-xl">
+    <div className="relative w-full h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden border border-border bg-background select-none">
+      {/* Floating Canvas Controls (Minimal Linear Style) */}
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-1 p-1 rounded-xl bg-surface/90 backdrop-blur-md border border-border shadow-sm">
         <button
           onClick={() => setZoom((z) => Math.min(2.5, z * 1.15))}
           title="Zoom In"
-          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-elevated transition-colors"
+          className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-elevated transition-colors"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
         <button
           onClick={() => setZoom((z) => Math.max(0.4, z * 0.85))}
           title="Zoom Out"
-          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-elevated transition-colors"
+          className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-elevated transition-colors"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
-        <span className="font-mono text-xs text-text-muted px-2 min-w-[50px] text-center">
+        <span className="font-mono text-xs text-text-muted px-2 min-w-[48px] text-center">
           {Math.round(zoom * 100)}%
         </span>
-        <div className="w-[1px] h-4 bg-border" />
+        <div className="w-[1px] h-3.5 bg-border mx-0.5" />
         <button
           onClick={resetView}
           title="Center Canvas"
-          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-elevated transition-colors"
+          className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-elevated transition-colors"
         >
           <RotateCcw className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Mini Legend */}
-      <div className="absolute top-4 right-4 z-20 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface/90 backdrop-blur-xl border border-border shadow-xl text-xs text-text-muted">
-        <Move className="w-3.5 h-3.5 text-accent" />
-        <span>Click & drag background to Pan • Drag cards to organize</span>
+      {/* Floating Tip */}
+      <div className="absolute top-4 right-4 z-20 hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-surface/90 backdrop-blur-md border border-border text-xs text-text-muted">
+        <Move className="w-3.5 h-3.5 text-text-faint" />
+        <span>Drag canvas to pan • Drag handle to move nodes</span>
       </div>
 
-      {/* Main Canvas Viewport */}
+      {/* Main Viewport */}
       <div
         ref={containerRef}
         onMouseDown={handleMouseDown}
@@ -106,8 +103,8 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
         onWheel={handleWheel}
         className="w-full h-full cursor-grab active:cursor-grabbing relative overflow-hidden canvas-bg"
         style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, var(--border-color) 1px, transparent 0)`,
-          backgroundSize: `${32 * zoom}px ${32 * zoom}px`,
+          backgroundImage: `radial-gradient(circle at 1px 1px, var(--border-strong) 1px, transparent 0)`,
+          backgroundSize: `${28 * zoom}px ${28 * zoom}px`,
           backgroundPosition: `${pan.x}px ${pan.y}px`,
         }}
       >
@@ -119,42 +116,37 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
             transformOrigin: 'center center',
           }}
         >
-          {/* Constellation Canvas Nodes */}
           <div className="relative w-full h-full flex items-center justify-center">
-            {/* Central Universal Hub Node */}
-            <div className="absolute pointer-events-auto -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-accent p-0.5 shadow-glow-lg flex items-center justify-center">
-              <div className="w-full h-full bg-background rounded-[14px] flex items-center justify-center text-accent">
-                <Compass className="w-6 h-6 animate-spin-slow" />
-              </div>
+            {/* Central Node */}
+            <div className="absolute pointer-events-auto -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-surface border border-border flex items-center justify-center text-text-muted shadow-sm">
+              <Compass className="w-5 h-5" />
             </div>
 
-            {/* Render items as spatial cards */}
+            {/* Nodes */}
             {items.map((item, idx) => {
-              // Calculate default spread if coordinates are 0
-              const x = item.canvas_x || (Math.cos((idx * 2 * Math.PI) / items.length) * 320);
-              const y = item.canvas_y || (Math.sin((idx * 2 * Math.PI) / items.length) * 220);
+              const x = item.canvas_x || (Math.cos((idx * 2 * Math.PI) / items.length) * 340);
+              const y = item.canvas_y || (Math.sin((idx * 2 * Math.PI) / items.length) * 240);
 
               return (
                 <div
                   key={item.id}
-                  className="absolute pointer-events-auto transition-transform"
+                  className="absolute pointer-events-auto"
                   style={{
                     transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
                     width: '320px',
                   }}
                   onMouseDown={(e) => {
-                    // Start dragging if clicking card header bar
                     if ((e.target as HTMLElement).closest('.drag-handle')) {
                       e.stopPropagation();
                       setDragItem(item.id);
                     }
                   }}
                 >
-                  <div className="drag-handle cursor-move py-1 px-3 mb-1 rounded-t-xl bg-surface-elevated/80 border border-border border-b-0 text-[10px] font-mono text-text-muted flex items-center justify-between">
+                  <div className="drag-handle cursor-move py-1 px-3 rounded-t-xl bg-surface-elevated border border-border border-b-0 text-[10px] font-mono text-text-faint flex items-center justify-between">
                     <span className="flex items-center gap-1">
-                      <Move className="w-2.5 h-2.5" /> Node #{idx + 1}
+                      <Move className="w-2.5 h-2.5" /> #{idx + 1}
                     </span>
-                    <span>({Math.round(x)}, {Math.round(y)})</span>
+                    <span>{Math.round(x)}, {Math.round(y)}</span>
                   </div>
                   <ItemCard item={item} onOpenMedia={onOpenMedia} />
                 </div>

@@ -3,109 +3,103 @@
 @tailwind utilities;
 
 :root {
-  /* Default: Midnight Obsidian OLED */
-  --bg-main: #050508;
-  --bg-surface: #0B0E17;
-  --bg-surface-elevated: #111524;
-  --bg-surface-hover: #181E33;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --primary: #8B5CF6;
-  --primary-hover: #7C3AED;
+  /* Default: Google Slate Dark (Clean, Enterprise Material Dark) */
+  --bg-main: #0E1015;
+  --bg-surface: #16181F;
+  --bg-surface-elevated: #1E212B;
+  --bg-surface-hover: #262A37;
+  --border-color: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --primary: #3B82F6;
+  --primary-hover: #2563EB;
   --primary-text: #FFFFFF;
-  --primary-glow: rgba(139, 92, 246, 0.35);
-  --accent: #06B6D4;
-  --accent-hover: #0891B2;
-  --accent-text: #FFFFFF;
-  --text-main: #F8FAFC;
-  --text-muted: #94A3B8;
-  --text-faint: #475569;
-}
-
-/* Tokyo Night / Indigo Cyber */
-[data-theme="tokyo"] {
-  --bg-main: #0F111A;
-  --bg-surface: #161926;
-  --bg-surface-elevated: #1F2437;
-  --bg-surface-hover: #293049;
-  --border-color: rgba(129, 140, 248, 0.15);
-  --border-strong: rgba(129, 140, 248, 0.28);
-  --primary: #6366F1;
-  --primary-hover: #4F46E5;
-  --primary-text: #FFFFFF;
-  --primary-glow: rgba(99, 102, 241, 0.4);
-  --accent: #A855F7;
-  --accent-hover: #9333EA;
-  --accent-text: #FFFFFF;
-  --text-main: #EEF2FF;
-  --text-muted: #A5B4FC;
-  --text-faint: #6366F1;
-}
-
-/* Paper Scholar / Warm Editorial */
-[data-theme="scholar"] {
-  --bg-main: #181614;
-  --bg-surface: #221F1B;
-  --bg-surface-elevated: #2E2A25;
-  --bg-surface-hover: #3B362F;
-  --border-color: rgba(217, 119, 6, 0.2);
-  --border-strong: rgba(217, 119, 6, 0.35);
-  --primary: #D97706;
-  --primary-hover: #B45309;
-  --primary-text: #FFFFFF;
-  --primary-glow: rgba(217, 119, 6, 0.35);
-  --accent: #EAB308;
-  --accent-hover: #CA8A04;
-  --accent-text: #181614;
-  --text-main: #FDFBF7;
-  --text-muted: #D1C7BD;
-  --text-faint: #8C827A;
-}
-
-/* Nordic Aurora / Slate Ice */
-[data-theme="aurora"] {
-  --bg-main: #070D14;
-  --bg-surface: #0C1522;
-  --bg-surface-elevated: #132135;
-  --bg-surface-hover: #1A2E49;
-  --border-color: rgba(56, 189, 248, 0.14);
-  --border-strong: rgba(56, 189, 248, 0.25);
-  --primary: #10B981;
-  --primary-hover: #059669;
-  --primary-text: #FFFFFF;
-  --primary-glow: rgba(16, 185, 129, 0.35);
+  --primary-glow: rgba(59, 130, 246, 0.2);
   --accent: #38BDF8;
-  --accent-hover: #0EA5E9;
-  --accent-text: #070D14;
-  --text-main: #F0FDF4;
-  --text-muted: #99F6E4;
-  --text-faint: #2DD4BF;
+  --text-main: #F1F5F9;
+  --text-muted: #94A3B8;
+  --text-faint: #64748B;
+  --badge-bg: rgba(255, 255, 255, 0.05);
 }
 
-/* Retro Terminal / Neo-Brutalist Monochrome */
-[data-theme="terminal"] {
+/* Meta Horizon (Deep Corporate Navy) */
+[data-theme="meta"] {
+  --bg-main: #0B0F19;
+  --bg-surface: #111827;
+  --bg-surface-elevated: #1F2937;
+  --bg-surface-hover: #283548;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --primary-text: #FFFFFF;
+  --primary-glow: rgba(37, 99, 235, 0.25);
+  --accent: #60A5FA;
+  --text-main: #F9FAFB;
+  --text-muted: #9CA3AF;
+  --text-faint: #6B7280;
+  --badge-bg: rgba(37, 99, 235, 0.08);
+}
+
+/* Apple Onyx (Monochrome Pure Elegance) */
+[data-theme="apple"] {
   --bg-main: #000000;
-  --bg-surface: #0A0A0A;
-  --bg-surface-elevated: #141414;
-  --bg-surface-hover: #1F1F1F;
-  --border-color: rgba(34, 197, 94, 0.25);
-  --border-strong: rgba(34, 197, 94, 0.5);
-  --primary: #22C55E;
-  --primary-hover: #16A34A;
+  --bg-surface: #0C0C0E;
+  --bg-surface-elevated: #161619;
+  --bg-surface-hover: #212126;
+  --border-color: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --primary: #FFFFFF;
+  --primary-hover: #E4E4E7;
   --primary-text: #000000;
-  --primary-glow: rgba(34, 197, 94, 0.35);
-  --accent: #F59E0B;
-  --accent-hover: #D97706;
-  --accent-text: #000000;
-  --text-main: #E5E5E5;
-  --text-muted: #86EFAC;
-  --text-faint: #4ADE80;
+  --primary-glow: rgba(255, 255, 255, 0.15);
+  --accent: #A1A1AA;
+  --text-main: #F4F4F5;
+  --text-muted: #A1A1AA;
+  --text-faint: #52525B;
+  --badge-bg: rgba(255, 255, 255, 0.06);
 }
 
-/* Custom modern scrollbars */
+/* Editorial Canvas (Clean Studio Paper Light) */
+[data-theme="light"] {
+  --bg-main: #F8F9FA;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #F1F3F5;
+  --bg-surface-hover: #E9ECEF;
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --primary: #0F172A;
+  --primary-hover: #1E293B;
+  --primary-text: #FFFFFF;
+  --primary-glow: rgba(15, 23, 42, 0.1);
+  --accent: #2563EB;
+  --text-main: #0F172A;
+  --text-muted: #475569;
+  --text-faint: #94A3B8;
+  --badge-bg: rgba(0, 0, 0, 0.04);
+}
+
+/* Typography & Base */
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Zero text chopping utilities */
+.text-wrap-balance {
+  text-wrap: balance;
+}
+
+.text-break-word {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Subtle, refined scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -118,25 +112,23 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: var(--text-faint);
 }
 
-/* Smooth transitions for theme switching */
-body, div, nav, header, aside, main, button, input {
-  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.15s ease;
-}
-
-/* Glassmorphism helpers */
-.glass-panel {
-  background: rgba(11, 14, 23, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+/* Card subtle border light reflection (Linear / Raycast style) */
+.subtle-card {
+  background: var(--bg-surface);
   border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.glass-dropdown {
-  background: rgba(17, 21, 36, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-strong);
+.subtle-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+}
+
+/* Smooth theme transitions */
+body, nav, header, main, div, button, input, textarea {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
 }

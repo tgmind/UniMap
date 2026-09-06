@@ -1,7 +1,7 @@
 import React from 'react';
 import { useItems } from '../../context/ItemContext';
 import { ItemCard } from '../ItemCard';
-import { Clock, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { UniItem } from '../../types';
 
 interface TimelineViewProps {
@@ -23,7 +23,6 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenMedia }) => {
     return true;
   });
 
-  // Group items by relative date bucket
   const groupItemsByDate = (list: UniItem[]) => {
     const today: UniItem[] = [];
     const yesterday: UniItem[] = [];
@@ -52,42 +51,40 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenMedia }) => {
       { label: 'Today', items: today },
       { label: 'Yesterday', items: yesterday },
       { label: 'This Week', items: thisWeek },
-      { label: 'Earlier Exam Notes', items: earlier },
+      { label: 'Earlier', items: earlier },
     ].filter((g) => g.items.length > 0);
   };
 
   const groups = groupItemsByDate(filtered);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 py-4">
+    <div className="max-w-5xl mx-auto space-y-8 py-2">
       {groups.length > 0 ? (
         groups.map((group) => (
-          <div key={group.label} className="relative pl-6 sm:pl-8 border-l-2 border-border/80 space-y-4">
-            {/* Timeline Pin Node */}
-            <div className="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-surface border-2 border-primary flex items-center justify-center">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-            </div>
+          <section key={group.label} className="relative pl-6 sm:pl-8 border-l border-border/80 space-y-4">
+            {/* Timeline Dot Indicator */}
+            <div className="absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-background" />
 
-            {/* Section Header */}
-            <div className="flex items-center gap-2 text-xs font-bold text-text-main uppercase tracking-wider">
-              <Calendar className="w-3.5 h-3.5 text-accent" />
+            {/* Date Group Heading */}
+            <div className="flex items-center gap-2 text-xs font-semibold text-text-main">
+              <Calendar className="w-3.5 h-3.5 text-text-muted" />
               <span>{group.label}</span>
-              <span className="text-[10px] font-mono font-normal text-text-muted px-2 py-0.5 rounded-full bg-surface border border-border">
-                {group.items.length} items
+              <span className="text-[11px] font-mono font-normal text-text-faint">
+                ({group.items.length})
               </span>
             </div>
 
-            {/* Items Grid for this date */}
+            {/* Responsive Grid for this date */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {group.items.map((item) => (
                 <ItemCard key={item.id} item={item} onOpenMedia={onOpenMedia} />
               ))}
             </div>
-          </div>
+          </section>
         ))
       ) : (
-        <div className="text-center py-12 text-text-muted text-xs">
-          No items found matching the timeline filter.
+        <div className="text-center py-20 text-text-muted text-xs">
+          No items found in timeline.
         </div>
       )}
     </div>
