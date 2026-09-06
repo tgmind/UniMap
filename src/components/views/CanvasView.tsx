@@ -138,6 +138,22 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
     setTimeout(() => setHighlightedNodeId(null), 2500);
   }, [items, zoom]);
 
+  // Synchronously track card dimensions for ray-box collision math
+  const cardDimensionsRef = useRef<Record<string, { w: number; h: number }>>({});
+  const [, setDimensionsVersion] = useState(0);
+
+  const registerCardRef = useCallback((id: string, el: HTMLDivElement | null) => {
+    if (el) {
+      const rectW = el.offsetWidth;
+      const rectH = el.offsetHeight;
+      const prev = cardDimensionsRef.current[id];
+      if (!prev || Math.abs(prev.w - rectW) > 2 || Math.abs(prev.h - rectH) > 2) {
+        cardDimensionsRef.current[id] = { w: rectW, h: rectH };
+        setDimensionsVersion((v) => v + 1);
+      }
+    }
+  }, []);
+
   // Helper to compute live/persisted position of any item by index
   const getNodePosition = useCallback(
     (item: (typeof items)[0], idx: number) => {
@@ -176,33 +192,48 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
       const dy = p2.y - p1.y;
       const dist = Math.hypot(dx, dy);
 
-      if (dist < 30) continue; // Skip if cards are stacked directly on top of each other
+      // Card bounding box dimensions (measured dynamically, fallback to standard card size)
+      const dims1 = cardDimensionsRef.current[source.id];
+      const dims2 = cardDimensionsRef.current[target.id];
+
+      const hw1 = (dims1?.w ?? 280) / 2;
+      const hh1 = (dims1?.h ?? 260) / 2;
+
+      const hw2 = (dims2?.w ?? 280) / 2;
+      const hh2 = (dims2?.h ?? 260) / 2;
 
       const theta = Math.atan2(dy, dx);
-      // Card bounding box dimensions (approx half-width & half-height)
-      const hw = 145;
-      const hh = 110;
+      const cosT = Math.cos(theta);
+      const sinT = Math.sin(theta);
 
-      const cosT = Math.cos(theta) || 0.0001;
-      const sinT = Math.sin(theta) || 0.0001;
+      // Exit point directly on source card perimeter
+      const tX1 = Math.abs(cosT) > 0.0001 ? Math.abs(hw1 / cosT) : Infinity;
+      const tY1 = Math.abs(sinT) > 0.0001 ? Math.abs(hh1 / sinT) : Infinity;
+      const r1 = Math.min(tX1, tY1);
 
-      // Exit point from source card boundary
-      const r1 = Math.min(Math.abs(hw / cosT), Math.abs(hh / sinT));
-      const actualR1 = Math.min(r1 + 8, dist * 0.42);
-      const sx = p1.x + Math.cos(theta) * actualR1;
-      const sy = p1.y + Math.sin(theta) * actualR1;
+      // Entry point directly touching target card perimeter
+      const tX2 = Math.abs(cosT) > 0.0001 ? Math.abs(hw2 / cosT) : Infinity;
+      const tY2 = Math.abs(sinT) > 0.0001 ? Math.abs(hh2 / sinT) : Infinity;
+      const r2 = Math.min(tX2, tY2);
 
-      // Entry point into target card boundary (leaving space for arrowhead)
-      const r2 = Math.min(Math.abs(hw / cosT), Math.abs(hh / sinT));
-      const actualR2 = Math.min(r2 + 18, dist * 0.42);
-      const ex = p2.x - Math.cos(theta) * actualR2;
-      const ey = p2.y - Math.sin(theta) * actualR2;
+      if (dist <= r1 + r2) {
+        // Cards overlap; don't render arrow underneath
+        continue;
+      }
 
-      // Gentle organic curve with perpendicular control offset
+      // Exact perimeter points
+      const sx = p1.x + cosT * r1;
+      const sy = p1.y + sinT * r1;
+
+      // For target, arrow tip directly touches outer card border
+      const ex = p2.x - cosT * r2;
+      const ey = p2.y - sinT * r2;
+
+      // Gentle organic curve with subtle perpendicular offset
       const lineLen = Math.hypot(ex - sx, ey - sy);
-      const curvature = Math.min(24, lineLen * 0.1);
-      const perpX = -Math.sin(theta) * curvature;
-      const perpY = Math.cos(theta) * curvature;
+      const curvature = Math.min(20, lineLen * 0.08);
+      const perpX = -sinT * curvature;
+      const perpY = cosT * curvature;
 
       const cx1 = sx + (ex - sx) * 0.35 + perpX;
       const cy1 = sy + (ey - sy) * 0.35 + perpY;
@@ -658,23 +689,29 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
             transition: isPanning || activeDragIdRef.current ? 'none' : 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
-          <div className="relative w-full h-full flex items-center justify-center">
+          <div className="relative w-full h-full">
             {/* Center Compass Origin Marker */}
-            <div className="absolute pointer-events-auto -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-2xl bg-surface/90 backdrop-blur-md border border-border flex items-center justify-center text-text-muted shadow-sm hover:scale-110 transition-transform">
+            <div
+              className="absolute pointer-events-auto w-10 h-10 rounded-2xl bg-surface/90 backdrop-blur-md border border-border flex items-center justify-center text-text-muted shadow-sm hover:scale-110 transition-transform"
+              style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
+            >
               <Compass className="w-5 h-5 text-primary" />
             </div>
 
             {/* Chronological Dotted Arrows Layer */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 overflow-visible pointer-events-none z-0">
+            <div
+              className="absolute w-0 h-0 overflow-visible pointer-events-none z-0"
+              style={{ left: '50%', top: '50%' }}
+            >
               <svg className="overflow-visible pointer-events-none" style={{ width: 1, height: 1 }}>
                 <defs>
                   <marker
                     id="canvas-dotted-arrow"
                     viewBox="0 0 10 10"
-                    refX="7"
+                    refX="8"
                     refY="5"
-                    markerWidth="7"
-                    markerHeight="7"
+                    markerWidth="8"
+                    markerHeight="8"
                     orient="auto"
                   >
                     <path d="M 0 1.5 L 8 5 L 0 8.5 L 2 5 Z" fill="#2481CC" />
@@ -752,6 +789,7 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
                 <div
                   key={item.id}
                   data-card-id={item.id}
+                  ref={(el) => registerCardRef(item.id, el)}
                   className={`absolute pointer-events-auto rounded-2xl select-none ${
                     isLifted
                       ? 'shadow-2xl ring-4 ring-[#2481CC] z-50 cursor-grabbing'
@@ -760,6 +798,8 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
                       : 'z-10'
                   }`}
                   style={{
+                    left: '50%',
+                    top: '50%',
                     transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${isLifted ? 1.05 : 1})`,
                     transition: isBeingDragged || isLifted ? 'none' : 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease',
                     width: 'clamp(260px, 80vw, 320px)',
