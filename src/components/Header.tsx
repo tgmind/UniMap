@@ -38,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenConfigModal,
 }) => {
   const { searchQuery, setSearchQuery, storageQuota } = useItems();
-  const { user, signOut, isGuestMode, devices } = useAuth();
+  const { user, signOut, devices } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -203,13 +203,8 @@ export const Header: React.FC<HeaderProps> = ({
                     {user?.display_name || 'Scholar'}
                   </p>
                   <p className="text-[11px] text-text-muted font-mono text-break-word">
-                    {user?.email || 'local.vault@unimap'}
+                    {user?.email || 'scholar@unimap.cloud'}
                   </p>
-                  {isGuestMode && (
-                    <span className="inline-block mt-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-surface-elevated text-text-muted border border-border">
-                      Offline Mode
-                    </span>
-                  )}
                 </div>
 
                 <div className="py-1">

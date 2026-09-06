@@ -17,7 +17,7 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { ViewMode } from './types';
 
 const MainApp: React.FC = () => {
-  const { user, isLoading, enterGuestMode } = useAuth();
+  const { user, isLoading } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('bento');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isStorageOpen, setIsStorageOpen] = useState(false);
@@ -64,7 +64,7 @@ const MainApp: React.FC = () => {
 
   // If user is not authenticated, show modern landing & login screen
   if (!user) {
-    return <AuthScreen onEnterGuestMode={enterGuestMode} />;
+    return <AuthScreen />;
   }
 
   return (

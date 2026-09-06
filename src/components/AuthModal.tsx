@@ -137,7 +137,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onOpenCon
               Supabase Not Configured
             </p>
             <p className="text-[11px] opacity-90">
-              You are currently running in <strong>Offline Local Vault Mode</strong>. To enable cross-device cloud sync, add your free Supabase keys.
+              Please configure your Supabase cloud backend credentials to sign in and sync across all devices.
             </p>
             <button
               type="button"

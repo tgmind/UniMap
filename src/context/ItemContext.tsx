@@ -39,7 +39,7 @@ interface ItemContextType {
 const ItemContext = createContext<ItemContextType | undefined>(undefined);
 
 export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isGuestMode } = useAuth();
+  const { user } = useAuth();
   const [items, setItems] = useState<UniItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,7 +71,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Realtime Supabase Sync & online fetch
   useEffect(() => {
     const client = getSupabaseClient();
-    if (!client || isGuestMode || !user) return;
+    if (!client || !user) return;
 
     // Fetch latest online items
     const fetchOnline = async () => {
@@ -121,7 +121,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       client.removeChannel(channel);
     };
-  }, [user, isGuestMode]);
+  }, [user]);
 
   // Storage Quota Calculation
   const storageQuota: StorageQuota = React.useMemo(() => {
@@ -163,7 +163,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let finalFileSize = input.fileSize || (input.file ? input.file.size : new Blob([input.content]).size);
 
     // If there's a file and Supabase is configured, upload to storage bucket 'user-media'
-    if (input.file && client && !isGuestMode && user) {
+    if (input.file && client && user) {
       try {
         const ext = input.fileName ? input.fileName.split('.').pop() : (input.type === 'html' ? 'html' : 'webp');
         const storagePath = `${user.id}/${itemId}.${ext}`;
@@ -219,7 +219,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await localDb.items.put(newItem);
 
     // Sync to Supabase Online if connected
-    if (client && !isGuestMode && user) {
+    if (client && user) {
       try {
         const { error } = await client.from('items').insert({
           id: newItem.id,
@@ -257,7 +257,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await localDb.items.delete(id);
 
     const client = getSupabaseClient();
-    if (client && !isGuestMode && user) {
+    if (client && user) {
       try {
         await client.from('items').delete().eq('id', id);
 
@@ -281,7 +281,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await localDb.items.put(updated);
 
     const client = getSupabaseClient();
-    if (client && !isGuestMode && user) {
+    if (client && user) {
       await client.from('items').update({ is_pinned: updated.is_pinned }).eq('id', id);
     }
   };
@@ -293,6 +293,14 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = items.find((i) => i.id === id);
     if (target) {
       await localDb.items.put({ ...target, canvas_x: x, canvas_y: y });
+    }
+    const client = getSupabaseClient();
+    if (client && user) {
+      try {
+        await client.from('items').update({ canvas_x: x, canvas_y: y }).eq('id', id);
+      } catch (err) {
+        console.warn('Failed to sync canvas position online:', err);
+      }
     }
   };
 

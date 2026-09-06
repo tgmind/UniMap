@@ -20,11 +20,9 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
-interface AuthScreenProps {
-  onEnterGuestMode: () => void;
-}
+interface AuthScreenProps {}
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = () => {
   const { signIn, signUp } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isSignUp, setIsSignUp] = useState(false);
@@ -281,16 +279,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </form>
-
-            <div className="pt-2 text-center">
-              <button
-                type="button"
-                onClick={onEnterGuestMode}
-                className="text-xs text-text-muted hover:text-text-main transition-colors underline"
-              >
-                Continue in Local Offline Mode
-              </button>
-            </div>
           </div>
         </div>
       </main>

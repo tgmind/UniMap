@@ -1,13 +1,13 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const DEFAULT_URL = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('unimap_supabase_url') || '';
-const DEFAULT_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('unimap_supabase_anon_key') || '';
+const DEFAULT_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gbuexacsjnidajviejqp.supabase.co';
+const DEFAULT_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdidWV4YWNzam5pZGFqdmllanFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MDMzMTgsImV4cCI6MjEwNDI3OTMxOH0.IgeCG3JOPVPb1qrpsY8ZAPP5RVkNhv5u1jo_4gZs6eM';
 
 let supabaseInstance: SupabaseClient | null = null;
 
 export function getSupabaseConfig(): { url: string; key: string; isConfigured: boolean } {
-  const url = localStorage.getItem('unimap_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
-  const key = localStorage.getItem('unimap_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const url = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('unimap_supabase_url') || DEFAULT_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('unimap_supabase_anon_key') || DEFAULT_KEY;
   return {
     url,
     key,

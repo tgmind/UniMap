@@ -3,22 +3,22 @@
 @tailwind utilities;
 
 :root, [data-theme="dark"] {
-  /* Dark Mode (Grey Colours / Slate Neutral Enterprise Dark) */
-  --bg-main: #0B0D12;
-  --bg-surface: #141722;
-  --bg-surface-elevated: #1D212F;
-  --bg-surface-hover: #262B3D;
-  --border-color: rgba(255, 255, 255, 0.08);
+  /* Dark Mode: Google Material 3 & Meta Clean Charcoal Palette */
+  --bg-main: #0D0F14;
+  --bg-surface: #181B22;
+  --bg-surface-elevated: #222631;
+  --bg-surface-hover: #2B303E;
+  --border-color: rgba(255, 255, 255, 0.09);
   --border-strong: rgba(255, 255, 255, 0.18);
   --primary: #3B82F6;
   --primary-hover: #2563EB;
   --primary-text: #FFFFFF;
-  --primary-glow: rgba(59, 130, 246, 0.2);
+  --primary-glow: rgba(59, 130, 246, 0.25);
   --accent: #38BDF8;
-  --text-main: #F1F5F9;
+  --text-main: #F8FAFC;
   --text-muted: #94A3B8;
   --text-faint: #64748B;
-  --badge-bg: rgba(255, 255, 255, 0.05);
+  --badge-bg: rgba(255, 255, 255, 0.06);
 }
 
 /* Light Mode: Editorial Canvas (Google & Meta Standard Neutral Grey Canvas + Crisp White Cards) */
@@ -123,11 +123,13 @@ input:-webkit-autofill:active {
 }
 
 [data-theme="dark"] .subtle-card, :root:not([data-theme="light"]) .subtle-card {
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5), 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 2px 8px -1px rgba(0, 0, 0, 0.45), 0 8px 24px -4px rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="dark"] .subtle-card:hover, :root:not([data-theme="light"]) .subtle-card:hover {
-  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.7);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25), 0 4px 14px -2px rgba(0, 0, 0, 0.5), 0 16px 36px -6px rgba(0, 0, 0, 0.7);
 }
 
 /* Smooth theme transitions */
