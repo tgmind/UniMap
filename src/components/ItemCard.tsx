@@ -27,33 +27,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Local interactive reaction state
-  const [reactions, setReactions] = useState<{ [emoji: string]: number }>({
-    '❤️': 12,
-    '🔥': 5,
-    '👏': 3,
-  });
-  const [userReacted, setUserReacted] = useState<string | null>(null);
-
-  const handleReaction = (emoji: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setReactions((prev) => {
-      const current = prev[emoji] || 0;
-      if (userReacted === emoji) {
-        setUserReacted(null);
-        return { ...prev, [emoji]: Math.max(0, current - 1) };
-      } else {
-        const next = { ...prev };
-        if (userReacted && next[userReacted]) {
-          next[userReacted] = Math.max(0, next[userReacted] - 1);
-        }
-        setUserReacted(emoji);
-        next[emoji] = current + 1;
-        return next;
-      }
-    });
-  };
-
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText(item.content);
@@ -316,53 +289,31 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
         )}
       </div>
 
-      {/* Telegram-Style Reactions & Action Bar */}
-      <div className="mt-3 pt-2.5 border-t border-border/20 flex flex-col gap-2">
-        {/* Telegram Interactive Reactions Row */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {Object.entries(reactions).map(([emoji, count]) => (
-            <button
-              key={emoji}
-              onClick={(e) => handleReaction(emoji, e)}
-              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-all active:scale-95 select-none ${
-                userReacted === emoji
-                  ? 'bg-[#2481CC]/20 text-[#2481CC] dark:text-[#50A7EA] border border-[#2481CC]/40 font-bold'
-                  : 'bg-surface-elevated/70 hover:bg-surface-elevated text-text-muted border border-border/40'
-              }`}
-            >
-              <span>{emoji}</span>
-              <span className="text-[11px] font-mono">{count}</span>
-            </button>
-          ))}
-        </div>
+      {/* Bottom Action & Time Strip */}
+      <div className="mt-2.5 pt-2 border-t border-border/20 flex items-center justify-between text-xs">
+        {/* 1-Tap Copy Action Button */}
+        <button
+          onClick={handleCopy}
+          title={copied ? 'Copied' : 'Copy message text'}
+          className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-[#2481CC] transition-colors font-medium px-2 py-0.5 rounded-md hover:bg-surface-elevated active:scale-95"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3 h-3 text-emerald-500" />
+              <span className="text-emerald-500 font-semibold">Copied!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3 h-3" />
+              <span>Copy Post</span>
+            </>
+          )}
+        </button>
 
-        {/* Bottom Status & Time Strip */}
-        <div className="flex items-center justify-between text-xs pt-1">
-          {/* 1-Tap Copy Action Button */}
-          <button
-            onClick={handleCopy}
-            title={copied ? 'Copied' : 'Copy message text'}
-            className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-[#2481CC] transition-colors font-medium px-2 py-0.5 rounded-md hover:bg-surface-elevated"
-          >
-            {copied ? (
-              <>
-                <Check className="w-3 h-3 text-emerald-500" />
-                <span className="text-emerald-500 font-semibold">Copied!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3 h-3" />
-                <span>Copy Post</span>
-              </>
-            )}
-          </button>
-
-          {/* Timestamp with Telegram Double Checkmark */}
-          <div className="flex items-center gap-1.5 text-[11px] text-text-faint font-mono select-none">
-            <span>{formatTime(item.created_at)}</span>
-            <span className="text-[#2481CC] dark:text-[#50A7EA] text-[10px] font-bold">✓✓</span>
-          </div>
-        </div>
+        {/* Timestamp */}
+        <span className="text-[11px] text-text-faint font-mono select-none">
+          {formatTime(item.created_at)}
+        </span>
       </div>
     </article>
   );

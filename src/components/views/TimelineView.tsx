@@ -58,7 +58,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenMedia }) => {
   const groups = groupItemsByDate(filtered);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 py-2">
+    <div className="max-w-4xl mx-auto space-y-8 py-2 px-[5%] sm:px-6">
       {groups.length > 0 ? (
         groups.map((group) => (
           <section key={group.label} className="relative pl-6 sm:pl-8 border-l border-border/80 space-y-4">
