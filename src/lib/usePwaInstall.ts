@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -9,31 +9,63 @@ export function usePwaInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstallable, setIsInstallable] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   useEffect(() => {
+    // Check if running in standalone PWA mode
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true;
 
     if (isStandalone) {
       setIsInstalled(true);
+      setShowInstallPrompt(false);
       return;
     }
 
+    // Check if iOS device
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIosDevice = /iphone|ipad|ipod/.test(userAgent) && !(window as any).MSStream;
+    setIsIOS(isIosDevice);
+
+    // Check recent dismissal in localStorage (re-prompt after 7 days)
+    const dismissedAt = localStorage.getItem('unimap_pwa_dismissed');
+    const isRecentlyDismissed =
+      dismissedAt && Date.now() - parseInt(dismissedAt, 10) < 7 * 24 * 60 * 60 * 1000;
+
+    // Listen for Chrome/Edge/Android beforeinstallprompt
     const handleBeforeInstallPrompt = (e: Event) => {
+      // PREVENT Chrome's default ugly mini-infobar popup!
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsInstallable(true);
+
+      if (!isRecentlyDismissed) {
+        // Show modern bottom popup after comfortable 2.5s delay
+        setTimeout(() => {
+          setShowInstallPrompt(true);
+        }, 2500);
+      }
     };
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setIsInstallable(false);
+      setShowInstallPrompt(false);
       setDeferredPrompt(null);
+      localStorage.removeItem('unimap_pwa_dismissed');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
+
+    // On iOS Safari where beforeinstallprompt does not fire:
+    if (isIosDevice && !isStandalone && !isRecentlyDismissed) {
+      setTimeout(() => {
+        setShowInstallPrompt(true);
+      }, 3000);
+    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -41,7 +73,7 @@ export function usePwaInstall() {
     };
   }, []);
 
-  const promptInstall = async (): Promise<boolean> => {
+  const promptInstall = useCallback(async (): Promise<boolean> => {
     if (!deferredPrompt) return false;
 
     try {
@@ -50,6 +82,7 @@ export function usePwaInstall() {
       if (choiceResult.outcome === 'accepted') {
         setIsInstalled(true);
         setIsInstallable(false);
+        setShowInstallPrompt(false);
         setDeferredPrompt(null);
         return true;
       }
@@ -57,7 +90,24 @@ export function usePwaInstall() {
       console.warn('Install prompt error:', err);
     }
     return false;
-  };
+  }, [deferredPrompt]);
 
-  return { isInstallable, isInstalled, promptInstall };
+  const dismissInstallPrompt = useCallback(() => {
+    setShowInstallPrompt(false);
+    localStorage.setItem('unimap_pwa_dismissed', Date.now().toString());
+  }, []);
+
+  const openInstallPrompt = useCallback(() => {
+    setShowInstallPrompt(true);
+  }, []);
+
+  return {
+    isInstallable,
+    isInstalled,
+    isIOS,
+    showInstallPrompt,
+    promptInstall,
+    dismissInstallPrompt,
+    openInstallPrompt,
+  };
 }

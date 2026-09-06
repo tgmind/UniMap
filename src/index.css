@@ -2,7 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
-:root, [data-theme="dark"] {
+:root, [data-theme="light"] {
+  /* Telegram Official Mint / Sage Light Mode Palette (Default) */
+  color-scheme: light;
+  --bg-main: #C9DFCA;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #F3F7F2;
+  --bg-surface-hover: #E7EFE6;
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --primary: #2481CC;
+  --primary-hover: #1E70B0;
+  --primary-text: #FFFFFF;
+  --primary-glow: rgba(36, 129, 204, 0.2);
+  --accent: #2481CC;
+  --link-color: #2481CC;
+  --text-main: #0F141A;
+  --text-muted: #4A5568;
+  --text-faint: #718096;
+  --badge-bg: rgba(0, 0, 0, 0.05);
+  --telegram-doodle-color: rgba(40, 80, 50, 0.10);
+}
+
+[data-theme="dark"], .dark {
   /* Telegram Official Dark Mode Palette */
   color-scheme: dark;
   --bg-main: #0E1621;
@@ -22,28 +44,6 @@
   --text-faint: #6A7B8C;
   --badge-bg: rgba(255, 255, 255, 0.07);
   --telegram-doodle-color: rgba(255, 255, 255, 0.04);
-}
-
-/* Telegram Official Mint / Sage Light Mode Palette */
-[data-theme="light"] {
-  color-scheme: light;
-  --bg-main: #C9DFCA;
-  --bg-surface: #FFFFFF;
-  --bg-surface-elevated: #F3F7F2;
-  --bg-surface-hover: #E7EFE6;
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.16);
-  --primary: #2481CC;
-  --primary-hover: #1E70B0;
-  --primary-text: #FFFFFF;
-  --primary-glow: rgba(36, 129, 204, 0.2);
-  --accent: #2481CC;
-  --link-color: #2481CC;
-  --text-main: #0F141A;
-  --text-muted: #4A5568;
-  --text-faint: #718096;
-  --badge-bg: rgba(0, 0, 0, 0.05);
-  --telegram-doodle-color: rgba(40, 80, 50, 0.10);
 }
 
 /* Typography & Base */

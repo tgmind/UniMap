@@ -14,6 +14,8 @@ import { ConfigModal } from './components/ConfigModal';
 import { MediaLightboxModal } from './components/MediaLightboxModal';
 import { AuthScreen } from './components/AuthScreen';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { PwaInstallPrompt } from './components/PwaInstallPrompt';
+import { usePwaInstall } from './lib/usePwaInstall';
 import { ViewMode } from './types';
 
 const MainApp: React.FC = () => {
@@ -24,6 +26,9 @@ const MainApp: React.FC = () => {
   const [isFleetOpen, setIsFleetOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+  // Modern PWA Installation Hook
+  const { isIOS, showInstallPrompt, promptInstall, dismissInstallPrompt } = usePwaInstall();
 
   // Mobile bottom navigation compact/expanded state
   const [isBottomNavExpanded, setIsBottomNavExpanded] = useState(false);
@@ -159,9 +164,19 @@ const MainApp: React.FC = () => {
     );
   }
 
-  // If user is not authenticated, show modern landing & login screen
+  // If user is not authenticated, show modern landing & login screen with PWA install support
   if (!user) {
-    return <AuthScreen />;
+    return (
+      <>
+        <AuthScreen />
+        <PwaInstallPrompt
+          isOpen={showInstallPrompt}
+          isIOS={isIOS}
+          onInstall={promptInstall}
+          onDismiss={dismissInstallPrompt}
+        />
+      </>
+    );
   }
 
   return (
@@ -231,6 +246,14 @@ const MainApp: React.FC = () => {
           onClose={() => setLightboxData(null)}
         />
       )}
+
+      {/* Modern PWA Install Bottom Sheet Popup */}
+      <PwaInstallPrompt
+        isOpen={showInstallPrompt}
+        isIOS={isIOS}
+        onInstall={promptInstall}
+        onDismiss={dismissInstallPrompt}
+      />
     </div>
   );
 };

@@ -7,13 +7,16 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      devOptions: {
+        enabled: true,
+      },
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'logo.svg'],
       manifest: {
         name: 'UniMap — Universal Cross-Device Data Map',
         short_name: 'UniMap',
         description: 'Universal cross-device knowledge vault and visual data map for exam study.',
-        theme_color: '#090d16',
-        background_color: '#05070c',
+        theme_color: '#FFFFFF',
+        background_color: '#FFFFFF',
         display: 'standalone',
         orientation: 'any',
         scope: '/',

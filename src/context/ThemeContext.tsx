@@ -13,6 +13,15 @@ interface ThemeDefinition {
 
 export const THEMES: ThemeDefinition[] = [
   {
+    id: 'light',
+    name: 'Editorial Canvas',
+    tagline: 'Clean Studio Paper White Mode',
+    badgeBg: '#FFFFFF',
+    primaryColor: '#0F172A',
+    accentColor: '#2481CC',
+    isDark: false,
+  },
+  {
     id: 'dark',
     name: 'Dark Mode',
     tagline: 'Refined Slate & Neutral Greys',
@@ -20,15 +29,6 @@ export const THEMES: ThemeDefinition[] = [
     primaryColor: '#3B82F6',
     accentColor: '#38BDF8',
     isDark: true,
-  },
-  {
-    id: 'light',
-    name: 'Editorial Canvas',
-    tagline: 'Clean Studio Paper White Mode',
-    badgeBg: '#FFFFFF',
-    primaryColor: '#0F172A',
-    accentColor: '#2563EB',
-    isDark: false,
   },
 ];
 
@@ -44,15 +44,17 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
     const saved = localStorage.getItem('unimap_theme');
-    if (saved === 'light') return 'light';
-    return 'dark';
+    if (saved === 'dark') return 'dark';
+    return 'light'; // Default is Light Theme
   });
 
   useEffect(() => {
     if (theme === 'light') {
       document.documentElement.setAttribute('data-theme', 'light');
+      document.documentElement.classList.remove('dark');
     } else {
-      document.documentElement.removeAttribute('data-theme');
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.documentElement.classList.add('dark');
     }
     localStorage.setItem('unimap_theme', theme);
   }, [theme]);
