@@ -4,6 +4,7 @@ import { getSupabaseClient } from '../lib/supabase';
 import { localDb } from '../lib/db';
 import { useAuth } from './AuthContext';
 import { detectDeviceOS, generateDefaultDeviceName } from '../lib/deviceDetector';
+import { generateUUID } from '../lib/uuid';
 
 interface AddItemInput {
   type: ItemType;
@@ -156,7 +157,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const client = getSupabaseClient();
     const currentDevice = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
     const os = detectDeviceOS();
-    const itemId = crypto.randomUUID();
+    const itemId = generateUUID();
 
     let uploadedUrl = '';
     let finalFileSize = input.fileSize || (input.file ? input.file.size : new Blob([input.content]).size);

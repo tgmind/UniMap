@@ -13,6 +13,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../context/AuthContext';
 import { DeviceOS, DeviceType } from '../types';
+import { generateUUID } from '../lib/uuid';
 
 interface FleetModalProps {
   isOpen: boolean;
@@ -20,7 +21,7 @@ interface FleetModalProps {
 }
 
 export const FleetModal: React.FC<FleetModalProps> = ({ isOpen, onClose }) => {
-  const { devices, revokeDevice, renameDevice, currentDeviceToken, refreshDevices } = useAuth();
+  const { devices, revokeDevice, renameDevice, refreshDevices, currentDeviceToken } = useAuth();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [activeTab, setActiveTab] = useState<'devices' | 'qr_generate' | 'qr_scan'>('devices');
@@ -28,7 +29,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      setQrToken('unimap_sync_' + crypto.randomUUID());
+      setQrToken('unimap_sync_' + generateUUID());
       refreshDevices();
     }
   }, [isOpen]);

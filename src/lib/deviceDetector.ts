@@ -1,10 +1,11 @@
 import { DeviceOS, DeviceType } from '../types';
+import { generateUUID } from './uuid';
 
 export function getDeviceToken(): string {
   const STORAGE_KEY = 'unimap_device_token';
   let token = localStorage.getItem(STORAGE_KEY);
   if (!token) {
-    token = 'dev_' + crypto.randomUUID();
+    token = 'dev_' + generateUUID();
     localStorage.setItem(STORAGE_KEY, token);
   }
   return token;
