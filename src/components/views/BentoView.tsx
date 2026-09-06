@@ -194,8 +194,8 @@ export const BentoView: React.FC<BentoViewProps> = ({
           onClick={scrollToBottom}
           title="Scroll to bottom"
           aria-label="Scroll to bottom"
-          className={`fixed right-4 sm:right-8 z-30 w-11 h-11 rounded-full bg-surface/95 dark:bg-[#182533]/95 border border-border/80 shadow-xl flex items-center justify-center text-[#2481CC] dark:text-[#50A7EA] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 animate-fade-in group ${
-            isNavVisible ? 'bottom-32 sm:bottom-22' : 'bottom-20 sm:bottom-22'
+          className={`fixed right-4 sm:right-8 z-30 w-11 h-11 rounded-full bg-white dark:bg-[#18222D] border border-slate-200/90 dark:border-white/10 shadow-xl flex items-center justify-center text-[#2481CC] dark:text-[#50A7EA] transition-all duration-300 hover:scale-110 active:scale-95 animate-fade-in group ${
+            isNavVisible ? 'bottom-[8.5rem] sm:bottom-22' : 'bottom-20 sm:bottom-22'
           }`}
         >
           <ChevronDown className="w-5 h-5 stroke-[2.5] group-hover:translate-y-0.5 transition-transform" />
@@ -205,7 +205,7 @@ export const BentoView: React.FC<BentoViewProps> = ({
       {/* Pinned Bottom Telegram Input Bar */}
       <div
         className={`sticky z-20 pt-2 pb-1 px-[5%] sm:px-6 max-w-4xl mx-auto transition-all duration-400 ease-in-out ${
-          isNavVisible ? 'bottom-16 sm:bottom-4' : 'bottom-3 sm:bottom-4'
+          isNavVisible ? 'bottom-[4.5rem] sm:bottom-4' : 'bottom-3 sm:bottom-4'
         }`}
       >
         <MessengerComposer />
