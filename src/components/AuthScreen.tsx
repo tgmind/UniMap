@@ -27,6 +27,7 @@ import { useTheme } from '../context/ThemeContext';
 import { UniMapLogo } from './UniMapLogo';
 import {
   generateQrSessionId,
+  generatePairingCode,
   createQrAuthPayload,
   subscribeToQrAuthSession,
 } from '../lib/qrAuth';
@@ -49,6 +50,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
   const [qrStatus, setQrStatus] = useState<'waiting' | 'scanned' | 'authorizing' | 'success' | 'expired'>('waiting');
   const [scannedDeviceName, setScannedDeviceName] = useState<string>('');
   const [countdown, setCountdown] = useState<number>(120);
+  const [pairingCode, setPairingCode] = useState<string>('');
 
   // Email/Password Form State
   const [email, setEmail] = useState('');
@@ -61,7 +63,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
   // Refresh QR Session
   const refreshQrSession = useCallback(() => {
     const newId = generateQrSessionId();
+    const newCode = generatePairingCode();
     setQrSessionId(newId);
+    setPairingCode(newCode);
     setQrStatus('waiting');
     setScannedDeviceName('');
     setCountdown(120);
@@ -99,7 +103,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
       return;
     }
 
-    const unsubscribe = subscribeToQrAuthSession(qrSessionId, {
+    const unsubscribe = subscribeToQrAuthSession(qrSessionId, pairingCode, {
       onScanned: ({ deviceName }) => {
         setQrStatus('scanned');
         if (deviceName) setScannedDeviceName(deviceName);
@@ -136,15 +140,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
     return () => {
       unsubscribe();
     };
-  }, [authMode, qrSessionId, qrStatus, signInWithSession]);
+  }, [authMode, qrSessionId, pairingCode, qrStatus, signInWithSession]);
 
   const qrPayload = useMemo(() => {
     if (!qrSessionId) return '';
-    return createQrAuthPayload(qrSessionId, {
+    return createQrAuthPayload(qrSessionId, pairingCode, {
       browser: detectBrowser(),
       os: detectDeviceOS(),
     });
-  }, [qrSessionId]);
+  }, [qrSessionId, pairingCode]);
 
   const minutes = Math.floor(countdown / 60);
   const seconds = countdown % 60;
@@ -462,6 +466,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Quick 6-Digit Pairing Code Display */}
+                {pairingCode && (
+                  <div className="w-full p-2.5 rounded-xl bg-surface-elevated/80 border border-border/80 flex items-center justify-between gap-2 text-xs">
+                    <div className="text-left">
+                      <p className="text-[11px] font-medium text-text-main">Pairing Code</p>
+                      <p className="text-[10px] text-text-muted">Enter on phone if camera unavailable</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 font-mono text-sm tracking-widest font-bold px-3 py-1 rounded-lg bg-surface border border-border text-text-main shadow-2xs">
+                      <span>{pairingCode.slice(0, 3)}</span>
+                      <span className="text-text-faint">-</span>
+                      <span>{pairingCode.slice(3, 6)}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* 3-Step Clear Visual Instructions */}
                 <div className="w-full space-y-2 pt-2 border-t border-border/60 text-left">

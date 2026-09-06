@@ -6,6 +6,7 @@ export interface QrLoginPayload {
   v: number;
   type: 'qr_login';
   sid: string;
+  code?: string;
   createdAt: number;
   clientInfo?: {
     browser?: string;
@@ -31,14 +32,26 @@ export function generateQrSessionId(): string {
 }
 
 /**
+ * Generates a friendly 6-digit pairing code as a fallback.
+ */
+export function generatePairingCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+/**
  * Creates the standardized QR code JSON string payload.
  */
-export function createQrAuthPayload(sessionId: string, clientInfo?: { browser?: string; os?: string }): string {
+export function createQrAuthPayload(
+  sessionId: string,
+  code: string,
+  clientInfo?: { browser?: string; os?: string }
+): string {
   const payload: QrLoginPayload = {
     app: 'unimap',
     v: 1,
     type: 'qr_login',
     sid: sessionId,
+    code,
     createdAt: Date.now(),
     clientInfo,
   };
@@ -61,13 +74,14 @@ export function parseQrAuthPayload(text: string): QrLoginPayload | null {
 }
 
 /**
- * Laptop/Web Client: Subscribes to the broadcast channel for the unique session ID.
+ * Laptop/Web Client: Subscribes to the broadcast channel for the session ID and the 6-digit pair code.
  * Listens for:
  *  - 'scanned': Mobile has detected the QR code
  *  - 'authorized': Mobile has approved and transmitted the auth session
  */
 export function subscribeToQrAuthSession(
   sessionId: string,
+  code: string | undefined,
   callbacks: {
     onScanned: (data: QrScannedPayload) => void;
     onAuthorized: (data: QrAuthorizedPayload) => void;
@@ -80,14 +94,15 @@ export function subscribeToQrAuthSession(
     return () => {};
   }
 
-  const channelName = `qr_auth_${sessionId}`;
-  const channel = client.channel(channelName, {
-    config: {
-      broadcast: { ack: true },
-    },
+  const channels: any[] = [];
+
+  // Channel 1: Unique QR Session Channel
+  const sessionChannelName = `qr_auth_${sessionId}`;
+  const sessionChannel = client.channel(sessionChannelName, {
+    config: { broadcast: { ack: true } },
   });
 
-  channel
+  sessionChannel
     .on('broadcast', { event: 'scanned' }, (msg: { payload: QrScannedPayload }) => {
       callbacks.onScanned(msg.payload || {});
     })
@@ -96,16 +111,39 @@ export function subscribeToQrAuthSession(
     })
     .subscribe((status) => {
       if (status === 'CHANNEL_ERROR') {
-        callbacks.onError?.(new Error(`Failed to subscribe to QR channel ${channelName}`));
+        callbacks.onError?.(new Error(`Failed to subscribe to QR session channel`));
       }
     });
 
+  channels.push(sessionChannel);
+
+  // Channel 2: 6-Digit Pair Code Channel (Fallback)
+  if (code && code.length >= 6) {
+    const pairChannelName = `qr_pair_${code.trim()}`;
+    const pairChannel = client.channel(pairChannelName, {
+      config: { broadcast: { ack: true } },
+    });
+
+    pairChannel
+      .on('broadcast', { event: 'scanned' }, (msg: { payload: QrScannedPayload }) => {
+        callbacks.onScanned(msg.payload || {});
+      })
+      .on('broadcast', { event: 'authorized' }, (msg: { payload: QrAuthorizedPayload }) => {
+        callbacks.onAuthorized(msg.payload || ({} as any));
+      })
+      .subscribe();
+
+    channels.push(pairChannel);
+  }
+
   return () => {
-    try {
-      client.removeChannel(channel);
-    } catch (e) {
-      console.warn('Error removing QR channel:', e);
-    }
+    channels.forEach((ch) => {
+      try {
+        client.removeChannel(ch);
+      } catch (e) {
+        console.warn('Error removing channel:', e);
+      }
+    });
   };
 }
 
@@ -118,9 +156,7 @@ export async function notifyQrScanned(sessionId: string, deviceName: string): Pr
 
   const channelName = `qr_auth_${sessionId}`;
   const channel = client.channel(channelName, {
-    config: {
-      broadcast: { ack: true },
-    },
+    config: { broadcast: { ack: true } },
   });
 
   return new Promise((resolve) => {
@@ -147,7 +183,7 @@ export async function notifyQrScanned(sessionId: string, deviceName: string): Pr
 }
 
 /**
- * Mobile Client: Approves the login session and transmits session tokens to the laptop.
+ * Mobile Client: Approves the login session and transmits session tokens to the laptop via sessionId.
  */
 export async function authorizeQrSession(
   sessionId: string,
@@ -159,9 +195,7 @@ export async function authorizeQrSession(
 
   const channelName = `qr_auth_${sessionId}`;
   const channel = client.channel(channelName, {
-    config: {
-      broadcast: { ack: true },
-    },
+    config: { broadcast: { ack: true } },
   });
 
   return new Promise((resolve) => {
@@ -180,6 +214,52 @@ export async function authorizeQrSession(
           resolve(res === 'ok');
         } catch (err) {
           console.error('Failed to authorize QR session:', err);
+          resolve(false);
+        } finally {
+          setTimeout(() => {
+            client.removeChannel(channel);
+          }, 1500);
+        }
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        resolve(false);
+      }
+    });
+  });
+}
+
+/**
+ * Mobile Client: Approves the login session and transmits session tokens using the 6-digit pairing code.
+ */
+export async function authorizeWithPairCode(
+  code: string,
+  session: { access_token: string; refresh_token: string },
+  deviceName: string
+): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+
+  const cleanCode = code.replace(/\D/g, '').trim();
+  const channelName = `qr_pair_${cleanCode}`;
+  const channel = client.channel(channelName, {
+    config: { broadcast: { ack: true } },
+  });
+
+  return new Promise((resolve) => {
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        try {
+          const res = await channel.send({
+            type: 'broadcast',
+            event: 'authorized',
+            payload: {
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+              deviceName,
+            },
+          });
+          resolve(res === 'ok');
+        } catch (err) {
+          console.error('Failed to authorize pair code:', err);
           resolve(false);
         } finally {
           setTimeout(() => {

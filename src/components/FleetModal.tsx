@@ -17,6 +17,9 @@ import {
   ArrowRight,
   ShieldCheck,
   StopCircle,
+  Video,
+  KeyRound,
+  Sparkles,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -27,6 +30,7 @@ import {
   parseQrAuthPayload,
   notifyQrScanned,
   authorizeQrSession,
+  authorizeWithPairCode,
 } from '../lib/qrAuth';
 import { getSupabaseClient } from '../lib/supabase';
 import { generateDefaultDeviceName } from '../lib/deviceDetector';
@@ -48,17 +52,33 @@ export const FleetModal: React.FC<FleetModalProps> = ({
   const [activeTab, setActiveTab] = useState<'devices' | 'qr_generate' | 'qr_scan'>(initialTab);
   const [qrToken, setQrToken] = useState<string>('');
 
-  // Scanner state
+  // Native camera file input ref
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Scanner states
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [manualCode, setManualCode] = useState('');
+  const [isSubmittingCode, setIsSubmittingCode] = useState(false);
+
   const [scannedSession, setScannedSession] = useState<{
     sessionId: string;
+    code?: string;
     clientInfo?: { browser?: string; os?: string };
     timestamp: number;
   } | null>(null);
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [authSuccess, setAuthSuccess] = useState(false);
+
+  const hasMediaDevices = typeof navigator !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia);
+  const isSecureOrigin = typeof window !== 'undefined' && (
+    window.isSecureContext ||
+    location.protocol === 'https:' ||
+    location.hostname === 'localhost' ||
+    location.hostname === '127.0.0.1'
+  );
 
   // Stop camera helper
   const stopCameraScanner = async () => {
@@ -74,15 +94,81 @@ export const FleetModal: React.FC<FleetModalProps> = ({
     setIsScanning(false);
   };
 
-  // Start camera helper
-  const startCameraScanner = async () => {
-    try {
-      setScanError(null);
-      setScannedSession(null);
-      setAuthSuccess(false);
-      setIsScanning(true);
+  // Process decoded QR text
+  const handleQrDecoded = (decodedText: string) => {
+    const parsed = parseQrAuthPayload(decodedText);
+    if (parsed && parsed.sid) {
+      stopCameraScanner();
 
-      // Brief tick for DOM container to mount
+      // Subtle vibration feedback
+      try {
+        if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
+      } catch (e) {}
+
+      // Send notification to laptop that its QR was captured
+      const devName = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
+      notifyQrScanned(parsed.sid, devName);
+
+      setScannedSession({
+        sessionId: parsed.sid,
+        code: parsed.code,
+        clientInfo: parsed.clientInfo,
+        timestamp: parsed.createdAt,
+      });
+      setScanError(null);
+    } else {
+      setScanError('Recognized a QR code, but it was not an authorized UniMap login code.');
+    }
+  };
+
+  // Launch Native Camera Capture (Works on 100% of mobile devices & HTTP PWAs)
+  const handleLaunchNativeCamera = () => {
+    setScanError(null);
+    fileInputRef.current?.click();
+  };
+
+  // Process Image File from Camera
+  const handleImageFileCaptured = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingImage(true);
+    setScanError(null);
+
+    try {
+      let scanner = scannerRef.current;
+      if (!scanner) {
+        scanner = new Html5Qrcode('unimap-qr-scanner-box');
+        scannerRef.current = scanner;
+      }
+      const decodedText = await scanner.scanFile(file, false);
+      handleQrDecoded(decodedText);
+    } catch (err: any) {
+      console.warn('Native photo QR decode error:', err);
+      setScanError('Could not clearly detect the QR code in that photo. Please position the camera closer to the laptop screen and snap again.');
+    } finally {
+      setIsProcessingImage(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  // Start Live WebRTC Video Camera Stream (if supported)
+  const startLiveCameraScanner = async () => {
+    setScanError(null);
+    setScannedSession(null);
+    setAuthSuccess(false);
+
+    if (!hasMediaDevices || !isSecureOrigin) {
+      setScanError('Live video requires HTTPS on mobile networks. Launching your camera photo scanner instead...');
+      setTimeout(() => {
+        handleLaunchNativeCamera();
+      }, 400);
+      return;
+    }
+
+    setIsScanning(true);
+
+    try {
       await new Promise((r) => setTimeout(r, 120));
       const box = document.getElementById('unimap-qr-scanner-box');
       if (!box) {
@@ -99,47 +185,122 @@ export const FleetModal: React.FC<FleetModalProps> = ({
       const scanner = new Html5Qrcode('unimap-qr-scanner-box');
       scannerRef.current = scanner;
 
+      let cameraConfig: any = { facingMode: { ideal: 'environment' } };
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          const backCam = cameras.find((c) =>
+            c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('rear')
+          ) || cameras[cameras.length - 1];
+          cameraConfig = backCam.id;
+        }
+      } catch (e) {
+        // Fallback to constraint object
+      }
+
       await scanner.start(
-        { facingMode: 'environment' },
+        cameraConfig,
         {
           fps: 12,
-          qrbox: { width: 230, height: 230 },
+          qrbox: { width: 220, height: 220 },
           aspectRatio: 1.0,
         },
-        async (decodedText) => {
-          const parsed = parseQrAuthPayload(decodedText);
-          if (parsed && parsed.sid) {
-            // Stop scanning immediately
-            try {
-              await scanner.stop();
-            } catch (e) {}
-            setIsScanning(false);
-
-            // Subtle vibration feedback
-            try {
-              if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
-            } catch (e) {}
-
-            // Send notification to laptop that its QR was captured
-            const devName =
-              localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
-            notifyQrScanned(parsed.sid, devName);
-
-            setScannedSession({
-              sessionId: parsed.sid,
-              clientInfo: parsed.clientInfo,
-              timestamp: parsed.createdAt,
-            });
-          }
+        (decodedText) => {
+          handleQrDecoded(decodedText);
         },
-        () => {
-          // Frame error (silently ignore)
-        }
+        () => {}
       );
     } catch (err: any) {
       console.warn('Camera scanner start error:', err);
-      setScanError(err.message || 'Unable to access device camera. Please verify camera permissions.');
+      setScanError('Live camera stream not supported: ' + (err.message || 'Permission denied') + '. Use the "Take Photo of QR" button below.');
       setIsScanning(false);
+    }
+  };
+
+  // Authorize using Scanned Session
+  const handleAuthorizeLogin = async () => {
+    if (!scannedSession) return;
+    setIsAuthorizing(true);
+    setScanError(null);
+
+    try {
+      const client = getSupabaseClient();
+      if (!client) throw new Error('Cloud client is initializing');
+
+      const { data: { session }, error } = await client.auth.getSession();
+      if (error || !session) throw new Error('No active user credentials found to transfer');
+
+      const devName = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
+      const ok = await authorizeQrSession(
+        scannedSession.sessionId,
+        {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        },
+        devName
+      );
+
+      if (ok) {
+        setAuthSuccess(true);
+        await refreshDevices();
+        setTimeout(() => {
+          setAuthSuccess(false);
+          setScannedSession(null);
+          setActiveTab('devices');
+        }, 2200);
+      } else {
+        throw new Error('Connection timed out. Please verify laptop is showing this session and try again.');
+      }
+    } catch (err: any) {
+      setScanError(err.message || 'Failed to authorize device');
+    } finally {
+      setIsAuthorizing(false);
+    }
+  };
+
+  // Authorize using 6-Digit Manual Pairing Code
+  const handleAuthorizeWithCode = async () => {
+    const cleanCode = manualCode.replace(/\D/g, '').trim();
+    if (cleanCode.length !== 6) {
+      setScanError('Please enter all 6 digits shown on the laptop screen.');
+      return;
+    }
+
+    setIsSubmittingCode(true);
+    setScanError(null);
+
+    try {
+      const client = getSupabaseClient();
+      if (!client) throw new Error('Cloud client is initializing');
+
+      const { data: { session }, error } = await client.auth.getSession();
+      if (error || !session) throw new Error('No active user credentials found to transfer');
+
+      const devName = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
+      const ok = await authorizeWithPairCode(
+        cleanCode,
+        {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        },
+        devName
+      );
+
+      if (ok) {
+        setAuthSuccess(true);
+        setManualCode('');
+        await refreshDevices();
+        setTimeout(() => {
+          setAuthSuccess(false);
+          setActiveTab('devices');
+        }, 2200);
+      } else {
+        throw new Error('Could not pair with code. Please check that your laptop screen is displaying this exact code.');
+      }
+    } catch (err: any) {
+      setScanError(err.message || 'Pairing failed');
+    } finally {
+      setIsSubmittingCode(false);
     }
   };
 
@@ -152,11 +313,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
       setScannedSession(null);
       setAuthSuccess(false);
       setScanError(null);
-
-      // Auto start scanner if opened directly into qr_scan tab
-      if (initialTab === 'qr_scan') {
-        startCameraScanner();
-      }
+      setManualCode('');
     } else {
       stopCameraScanner();
     }
@@ -200,47 +357,6 @@ export const FleetModal: React.FC<FleetModalProps> = ({
     setEditingId(null);
   };
 
-  // Authorize QR Login Action
-  const handleAuthorizeLogin = async () => {
-    if (!scannedSession) return;
-    setIsAuthorizing(true);
-    setScanError(null);
-
-    try {
-      const client = getSupabaseClient();
-      if (!client) throw new Error('Cloud client is initializing');
-
-      const { data: { session }, error } = await client.auth.getSession();
-      if (error || !session) throw new Error('No active user credentials found to transfer');
-
-      const devName = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
-      const ok = await authorizeQrSession(
-        scannedSession.sessionId,
-        {
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        },
-        devName
-      );
-
-      if (ok) {
-        setAuthSuccess(true);
-        await refreshDevices();
-        setTimeout(() => {
-          setAuthSuccess(false);
-          setScannedSession(null);
-          setActiveTab('devices');
-        }, 2200);
-      } else {
-        throw new Error('Connection timed out. Please point camera at the laptop screen and try again.');
-      }
-    } catch (err: any) {
-      setScanError(err.message || 'Failed to authorize device');
-    } finally {
-      setIsAuthorizing(false);
-    }
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
@@ -250,11 +366,21 @@ export const FleetModal: React.FC<FleetModalProps> = ({
         className="w-full max-w-xl bg-surface border border-border rounded-2xl p-6 shadow-xl overflow-hidden max-h-[90vh] flex flex-col space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Hidden Native Camera Input for 100% mobile compatibility */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleImageFileCaptured}
+        />
+
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-border/60">
           <div>
             <h2 className="text-base font-semibold text-text-main">Connected Devices</h2>
-            <p className="text-xs text-text-muted mt-0.5">Manage sessions across your computers, tablets, and phones</p>
+            <p className="text-xs text-text-muted mt-0.5">Manage hardware sessions across your computers and mobile devices</p>
           </div>
           <button
             onClick={onClose}
@@ -275,16 +401,13 @@ export const FleetModal: React.FC<FleetModalProps> = ({
             Devices ({devices.length})
           </button>
           <button
-            onClick={() => {
-              setActiveTab('qr_scan');
-              startCameraScanner();
-            }}
+            onClick={() => setActiveTab('qr_scan')}
             className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'qr_scan' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
             }`}
           >
             <Camera className="w-3.5 h-3.5" />
-            <span>Scan QR Code</span>
+            <span>Link Laptop / Scan QR</span>
           </button>
           <button
             onClick={() => setActiveTab('qr_generate')}
@@ -316,10 +439,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                   </div>
                 </div>
                 <button
-                  onClick={() => {
-                    setActiveTab('qr_scan');
-                    startCameraScanner();
-                  }}
+                  onClick={() => setActiveTab('qr_scan')}
                   className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent/90 text-white text-xs font-semibold shrink-0 shadow-xs active:scale-95 transition-all flex items-center gap-1.5"
                 >
                   <Camera className="w-3 h-3" />
@@ -404,12 +524,12 @@ export const FleetModal: React.FC<FleetModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: REAL CAMERA QR SCANNER & MOBILE AUTHORIZATION */}
+          {/* TAB 2: ROBUST SCANNER & AUTHORIZATION */}
           {activeTab === 'qr_scan' && (
             <div className="space-y-4">
               {/* Error Notice */}
               {scanError && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2 animate-fade-in">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span className="flex-1 text-break-word">{scanError}</span>
                 </div>
@@ -450,6 +570,12 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                         {scannedSession.clientInfo?.browser || 'Web Browser'} • {scannedSession.clientInfo?.os || 'Computer'}
                       </span>
                     </div>
+                    {scannedSession.code && (
+                      <div className="flex items-center justify-between text-text-main">
+                        <span className="text-text-muted">Pairing Code:</span>
+                        <span className="font-mono text-xs font-semibold">{scannedSession.code}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-text-main">
                       <span className="text-text-muted">Time:</span>
                       <span className="font-mono text-[11px] text-text-faint">Just now</span>
@@ -471,7 +597,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                     <button
                       onClick={() => {
                         setScannedSession(null);
-                        startCameraScanner();
+                        setScanError(null);
                       }}
                       disabled={isAuthorizing}
                       className="flex-1 py-2.5 rounded-xl bg-surface-hover hover:bg-surface-elevated border border-border text-xs font-semibold text-text-muted transition-all"
@@ -500,21 +626,12 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                 </div>
               )}
 
-              {/* State C: Active Camera Viewfinder */}
+              {/* State C: Main Scanner Interface with Camera & 6-Digit Pin */}
               {!authSuccess && !scannedSession && (
-                <div className="p-4 rounded-xl bg-surface-elevated/50 border border-border text-center space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold text-text-main">Point camera at the QR code on your computer</p>
-                    <p className="text-[11px] text-text-muted mt-0.5">
-                      Your laptop will instantly recognize this phone and sign in.
-                    </p>
-                  </div>
-
-                  {/* Scanner Viewport */}
-                  <div className="relative max-w-[260px] mx-auto rounded-2xl overflow-hidden aspect-square bg-black shadow-inner border border-border">
+                <div className="space-y-4">
+                  {/* Container for Html5Qrcode element (always present in DOM for file decode and live stream) */}
+                  <div className={`${isScanning ? 'block' : 'hidden'} relative max-w-[260px] mx-auto rounded-2xl overflow-hidden aspect-square bg-black shadow-inner border border-border mb-3`}>
                     <div id="unimap-qr-scanner-box" className="w-full h-full" />
-
-                    {/* Viewfinder Target Guidelines */}
                     <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                       <div className="w-48 h-48 border-2 border-accent/70 rounded-xl relative">
                         <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-white" />
@@ -525,25 +642,113 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Controls */}
-                  <div className="flex items-center justify-center gap-3 pt-1">
-                    {!isScanning ? (
+                  {/* Hidden scanner box when not in live mode so Html5Qrcode instance can initialize */}
+                  {!isScanning && (
+                    <div id="unimap-qr-scanner-box" className="hidden w-1 h-1" />
+                  )}
+
+                  {/* Processing photo indicator */}
+                  {isProcessingImage && (
+                    <div className="p-4 rounded-xl bg-surface-elevated border border-border text-center space-y-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-accent mx-auto" />
+                      <p className="text-xs font-semibold text-text-main">Analyzing QR Code photo...</p>
+                    </div>
+                  )}
+
+                  {/* Option 1: Native Phone Camera Snap (100% Reliable across all PWAs & HTTP) */}
+                  <div className="p-4 rounded-2xl bg-surface-elevated/60 border border-border space-y-3">
+                    <div className="text-center">
+                      <h4 className="text-xs font-bold text-text-main flex items-center justify-center gap-1.5">
+                        <Camera className="w-4 h-4 text-accent" />
+                        <span>Scan with Mobile Camera</span>
+                      </h4>
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        Snap a quick photo of the QR code on your laptop screen to log in immediately.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
                       <button
-                        onClick={startCameraScanner}
-                        className="px-4 py-2 rounded-xl bg-primary text-primary-text text-xs font-semibold shadow-sm hover:bg-primary-hover active:scale-95 transition-all flex items-center gap-2"
+                        onClick={handleLaunchNativeCamera}
+                        disabled={isProcessingImage}
+                        className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-2 active:scale-98 transition-all"
                       >
-                        <Camera className="w-3.5 h-3.5" />
-                        <span>Start Camera</span>
+                        <Camera className="w-4 h-4" />
+                        <span>Take Photo of QR Code</span>
                       </button>
-                    ) : (
+
                       <button
-                        onClick={stopCameraScanner}
-                        className="px-4 py-2 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border text-xs font-medium text-text-main transition-colors flex items-center gap-2"
+                        onClick={isScanning ? stopCameraScanner : startLiveCameraScanner}
+                        disabled={isProcessingImage}
+                        className="w-full py-2 rounded-xl bg-surface border border-border hover:bg-surface-elevated text-text-muted hover:text-text-main text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
                       >
-                        <StopCircle className="w-3.5 h-3.5 text-red-400" />
-                        <span>Stop Camera</span>
+                        {isScanning ? (
+                          <>
+                            <StopCircle className="w-3.5 h-3.5 text-red-400" />
+                            <span>Stop Live Viewfinder</span>
+                          </>
+                        ) : (
+                          <>
+                            <Video className="w-3.5 h-3.5 text-text-faint" />
+                            <span>Toggle Live Video Stream</span>
+                          </>
+                        )}
                       </button>
-                    )}
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="flex items-center gap-3 py-0.5">
+                    <div className="h-px bg-border flex-1" />
+                    <span className="text-[10px] uppercase font-mono text-text-faint tracking-wider">
+                      Or enter 6-digit code
+                    </span>
+                    <div className="h-px bg-border flex-1" />
+                  </div>
+
+                  {/* Option 2: Direct 6-Digit Pairing Code (100% Guaranteed Backup) */}
+                  <div className="p-4 rounded-2xl bg-surface-elevated/60 border border-border space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-text-main">
+                        <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Pair via 6-Digit Code</span>
+                      </div>
+                      <span className="text-[10px] text-text-faint">Instant</span>
+                    </div>
+                    <p className="text-[11px] text-text-muted">
+                      Type the 6-digit pairing code shown right beneath the QR code on your computer screen.
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        placeholder="e.g. 849201"
+                        value={manualCode}
+                        onChange={(e) => setManualCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        className="flex-1 bg-surface border border-border focus:border-primary rounded-xl px-3 py-2 text-center text-sm font-mono tracking-widest font-bold text-text-main placeholder-text-faint focus:outline-none transition-colors"
+                      />
+
+                      <button
+                        onClick={handleAuthorizeWithCode}
+                        disabled={manualCode.replace(/\D/g, '').length !== 6 || isSubmittingCode}
+                        className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
+                      >
+                        {isSubmittingCode ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Authorizing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Authorize Laptop</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
