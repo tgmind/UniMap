@@ -1,5 +1,6 @@
 import React from 'react';
 import { ItemCard } from '../ItemCard';
+import { MessengerComposer } from '../MessengerComposer';
 import { useItems } from '../../context/ItemContext';
 import { ItemType } from '../../types';
 import { Globe, Image as ImageIcon, FileText, Code, Link2, Sparkles, Filter, Plus } from 'lucide-react';
@@ -39,36 +40,36 @@ export const BentoView: React.FC<BentoViewProps> = ({ onOpenAddModal, onOpenMedi
   };
 
   const typePills: { id: ItemType | 'all'; label: string; icon: React.ReactNode }[] = [
-    { id: 'all', label: 'All Items', icon: <Sparkles className="w-3.5 h-3.5" /> },
-    { id: 'html', label: 'HTML Docs', icon: <Globe className="w-3.5 h-3.5 text-sky-400" /> },
-    { id: 'code', label: 'Code', icon: <Code className="w-3.5 h-3.5 text-violet-400" /> },
-    { id: 'media', label: 'Media', icon: <ImageIcon className="w-3.5 h-3.5 text-rose-400" /> },
+    { id: 'all', label: 'All', icon: <Sparkles className="w-3.5 h-3.5" /> },
     { id: 'text', label: 'Notes', icon: <FileText className="w-3.5 h-3.5 text-amber-400" /> },
     { id: 'link', label: 'Links', icon: <Link2 className="w-3.5 h-3.5 text-emerald-400" /> },
+    { id: 'media', label: 'Media', icon: <ImageIcon className="w-3.5 h-3.5 text-rose-400" /> },
+    { id: 'code', label: 'Code', icon: <Code className="w-3.5 h-3.5 text-violet-400" /> },
+    { id: 'html', label: 'HTML', icon: <Globe className="w-3.5 h-3.5 text-sky-400" /> },
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Control Bar: Filters & Device Selection */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3 border-b border-border/60">
-        {/* Type Filter Tabs with Smooth Mobile Scroller */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1 -my-1">
+    <div className="space-y-5">
+      {/* Control Bar: Responsive Filters & Fleet Dropdown (Zero horizontal scroll / sliding needed) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
+        {/* Adaptive Screen-Fitted Category Pills: 3-column micro-grid on mobile, flex row on desktop */}
+        <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 w-full sm:w-auto">
           {typePills.map((pill) => {
             const isSelected = selectedType === pill.id;
             return (
               <button
                 key={pill.id}
                 onClick={() => setSelectedType(pill.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${
+                className={`flex items-center justify-center sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
                   isSelected
                     ? 'bg-primary text-primary-text shadow-sm shadow-primary/20'
                     : 'bg-surface-elevated/70 text-text-muted hover:text-text-main hover:bg-surface-elevated border border-border/60'
                 }`}
               >
                 {pill.icon}
-                <span>{pill.label}</span>
+                <span className="truncate">{pill.label}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
                     isSelected
                       ? 'bg-white/20 text-white'
                       : 'bg-surface text-text-faint'
@@ -81,24 +82,23 @@ export const BentoView: React.FC<BentoViewProps> = ({ onOpenAddModal, onOpenMedi
           })}
         </div>
 
-        {/* Device Filter Dropdown */}
-        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-          <span className="text-xs text-text-muted flex items-center gap-1.5 font-medium">
-            <Filter className="w-3.5 h-3.5 text-text-faint" />
-            <span className="hidden sm:inline">Fleet:</span>
-          </span>
-          <select
-            value={selectedDevice}
-            onChange={(e) => setSelectedDevice(e.target.value)}
-            className="bg-surface-elevated border border-border text-xs text-text-main font-medium px-3 py-1.5 rounded-xl focus:outline-none focus:border-primary cursor-pointer shadow-2xs"
-          >
-            <option value="all">All Synced Devices ({items.length})</option>
-            {uniqueDevices.map((dev) => (
-              <option key={dev} value={dev}>
-                {dev}
-              </option>
-            ))}
-          </select>
+        {/* Device Fleet Selector */}
+        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+          <div className="relative w-full sm:w-auto">
+            <Filter className="w-3.5 h-3.5 text-text-faint absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              value={selectedDevice}
+              onChange={(e) => setSelectedDevice(e.target.value)}
+              className="w-full sm:w-auto bg-surface-elevated border border-border text-xs text-text-main font-medium pl-8 pr-4 py-1.5 rounded-xl focus:outline-none focus:border-primary cursor-pointer shadow-2xs"
+            >
+              <option value="all">Fleet: All Devices ({items.length})</option>
+              {uniqueDevices.map((dev) => (
+                <option key={dev} value={dev}>
+                  {dev}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -130,6 +130,11 @@ export const BentoView: React.FC<BentoViewProps> = ({ onOpenAddModal, onOpenMedi
           </button>
         </div>
       )}
+
+      {/* Pinned Bottom Messenger Typing Bar (WhatsApp / Instagram Style) */}
+      <div className="sticky bottom-16 sm:bottom-4 z-20 pt-2 pb-1">
+        <MessengerComposer />
+      </div>
     </div>
   );
 };

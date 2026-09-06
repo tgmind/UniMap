@@ -113,6 +113,31 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
 
   const isLongContent = item.content && item.content.length > 280;
 
+  const renderContentWithLinks = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+    const parts = text.split(urlRegex);
+
+    return parts.map((part, index) => {
+      if (part.match(urlRegex)) {
+        const href = part.startsWith('http') ? part : `https://${part}`;
+        return (
+          <a
+            key={index}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 underline font-semibold break-all inline-flex items-baseline gap-0.5 transition-colors"
+          >
+            <span>{part}</span>
+            <ExternalLink className="w-2.5 h-2.5 inline shrink-0 opacity-80" />
+          </a>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
     <article
       className={`subtle-card rounded-2xl flex flex-col justify-between overflow-hidden relative group transition-all duration-200 hover:-translate-y-1 ${
@@ -339,7 +364,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
                 isExpanded ? 'max-h-none' : 'max-h-40 overflow-hidden relative'
               }`}
             >
-              {item.content}
+              {renderContentWithLinks(item.content)}
               {!isExpanded && isLongContent && (
                 <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface-elevated to-transparent" />
               )}

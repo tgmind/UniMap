@@ -12,11 +12,13 @@ import {
   User,
   LogOut,
   SlidersHorizontal,
+  Download,
 } from 'lucide-react';
 import { ViewMode } from '../types';
 import { useItems } from '../context/ItemContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { usePwaInstall } from '../lib/usePwaInstall';
 
 interface HeaderProps {
   viewMode: ViewMode;
@@ -40,6 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { searchQuery, setSearchQuery, storageQuota } = useItems();
   const { user, signOut, devices } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { isInstallable, promptInstall } = usePwaInstall();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -205,6 +208,18 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
+          {/* Install PWA Button */}
+          {isInstallable && (
+            <button
+              onClick={promptInstall}
+              title="Install UniMap App on this device"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/15 hover:bg-accent/25 text-accent text-xs font-semibold border border-accent/30 shadow-xs transition-all active:scale-95"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Install App</span>
+            </button>
+          )}
+
           {/* Desktop Primary Action Button: "Add Item" */}
           <button
             onClick={onOpenAddModal}
@@ -261,6 +276,16 @@ export const Header: React.FC<HeaderProps> = ({
                     <SlidersHorizontal className="w-3.5 h-3.5 text-text-faint" />
                     <span>Backend Config</span>
                   </button>
+
+                  {isInstallable && (
+                    <button
+                      onClick={promptInstall}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-primary font-semibold hover:bg-primary/10 flex items-center gap-2"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Install UniMap App</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="pt-1 border-t border-border/70">

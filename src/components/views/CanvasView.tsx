@@ -28,22 +28,27 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
   const [mode, setMode] = useState<InteractionMode>('pan');
   const [isPanning, setIsPanning] = useState(false);
   const [dragItem, setDragItem] = useState<string | null>(null);
+  const [liftedCardId, setLiftedCardId] = useState<string | null>(null);
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
   const [activeNodeIdx, setActiveNodeIdx] = useState<number>(0);
   const [showGestureHint, setShowGestureHint] = useState(true);
 
-  // Drag offsets
+  // Drag & pinch refs
   const panStartRef = useRef({ x: 0, y: 0 });
   const panOriginRef = useRef({ x: 0, y: 0 });
   const cardDragOffsetRef = useRef({ x: 0, y: 0 });
   const pinchStartDistRef = useRef<number | null>(null);
   const pinchStartZoomRef = useRef<number>(1);
 
+  // Long-press (touch and hold to lift) refs
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressStartRef = useRef({ x: 0, y: 0 });
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Auto-hide gesture hint after 4.5 seconds
   useEffect(() => {
-    const timer = setTimeout(() => setShowGestureHint(false), 4500);
+    const timer = setTimeout(() => setShowGestureHint(false), 5000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -117,13 +122,14 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
     return { x: cx, y: cy };
   };
 
-  // --- MOUSE HANDLERS ---
+  // --- MOUSE HANDLERS (Desktop) ---
   const handleMouseDown = (e: React.MouseEvent) => {
     const targetEl = e.target as HTMLElement;
     const handleEl = targetEl.closest('.drag-handle');
+    const cardEl = targetEl.closest('[data-card-id]');
 
-    if (handleEl) {
-      const itemId = handleEl.getAttribute('data-item-id');
+    if (handleEl || (mode === 'move' && cardEl)) {
+      const itemId = (handleEl?.getAttribute('data-item-id') || cardEl?.getAttribute('data-card-id'));
       if (itemId) {
         e.stopPropagation();
         const item = items.find((i) => i.id === itemId);
@@ -134,6 +140,7 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
             y: coords.y - (item.canvas_y || 0),
           };
           setDragItem(itemId);
+          setLiftedCardId(itemId);
           return;
         }
       }
@@ -163,6 +170,7 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
   const handleMouseUp = () => {
     setIsPanning(false);
     setDragItem(null);
+    setLiftedCardId(null);
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -174,6 +182,11 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
   // --- TOUCH HANDLERS (Mobile / Tablet Gestures) ---
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
+      // 2-finger pinch starts
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
       const t1 = e.touches[0];
       const t2 = e.touches[1];
       const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
@@ -181,14 +194,17 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
       pinchStartZoomRef.current = zoom;
       setIsPanning(false);
       setDragItem(null);
+      setLiftedCardId(null);
       return;
     }
 
     if (e.touches.length === 1) {
       const touch = e.touches[0];
       const targetEl = touch.target as HTMLElement;
+      const cardEl = targetEl.closest('[data-card-id]');
       const handleEl = targetEl.closest('.drag-handle');
 
+      // Immediate move if in 'move' mode and touching drag handle
       if (mode === 'move' && handleEl) {
         const itemId = handleEl.getAttribute('data-item-id');
         if (itemId) {
@@ -200,53 +216,125 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
               y: coords.y - (item.canvas_y || 0),
             };
             setDragItem(itemId);
+            setLiftedCardId(itemId);
             return;
           }
         }
       }
 
+      // Setup Touch & Hold (Long-press) on card to lift and drag!
+      if (cardEl) {
+        const cardId = cardEl.getAttribute('data-card-id');
+        if (cardId) {
+          longPressStartRef.current = { x: touch.clientX, y: touch.clientY };
+          longPressTimerRef.current = setTimeout(() => {
+            // Long-press triggered! Lift card!
+            setLiftedCardId(cardId);
+            setDragItem(cardId);
+            setIsPanning(false);
+            const coords = getCanvasCoords(touch.clientX, touch.clientY);
+            const item = items.find((i) => i.id === cardId);
+            if (item) {
+              cardDragOffsetRef.current = {
+                x: coords.x - (item.canvas_x || 0),
+                y: coords.y - (item.canvas_y || 0),
+              };
+            }
+            if ('vibrate' in navigator) {
+              try {
+                navigator.vibrate([35]);
+              } catch {}
+            }
+          }, 320);
+        }
+      }
+
+      // Default: Prepare for 1-finger canvas pan
       setIsPanning(true);
       panStartRef.current = { x: touch.clientX, y: touch.clientY };
       panOriginRef.current = { ...pan };
     }
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && pinchStartDistRef.current) {
-      e.preventDefault();
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      const scale = dist / pinchStartDistRef.current;
-      const newZoom = Math.min(2.5, Math.max(0.35, pinchStartZoomRef.current * scale));
-      setZoom(Number(newZoom.toFixed(2)));
-      return;
-    }
+  // Native non-passive touchmove listener to avoid "Unable to preventDefault inside passive event listener"
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    if (e.touches.length === 1) {
-      const touch = e.touches[0];
-      if (isPanning) {
-        e.preventDefault();
-        const dx = touch.clientX - panStartRef.current.x;
-        const dy = touch.clientY - panStartRef.current.y;
-        setPan({
-          x: panOriginRef.current.x + dx,
-          y: panOriginRef.current.y + dy,
-        });
-      } else if (dragItem) {
-        e.preventDefault();
-        const coords = getCanvasCoords(touch.clientX, touch.clientY);
-        const newX = Math.round(coords.x - cardDragOffsetRef.current.x);
-        const newY = Math.round(coords.y - cardDragOffsetRef.current.y);
-        updateCanvasPosition(dragItem, newX, newY);
+    const onNativeTouchMove = (e: TouchEvent) => {
+      // 2-finger Pinch-to-zoom
+      if (e.touches.length === 2 && pinchStartDistRef.current) {
+        if (e.cancelable) e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        const scale = dist / pinchStartDistRef.current;
+        const newZoom = Math.min(2.5, Math.max(0.35, pinchStartZoomRef.current * scale));
+        setZoom(Number(newZoom.toFixed(2)));
+        return;
       }
-    }
-  };
+
+      // 1-finger touch
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+
+        // If user moved more than 8px before 320ms, cancel long press
+        if (longPressTimerRef.current) {
+          const dx = Math.abs(touch.clientX - longPressStartRef.current.x);
+          const dy = Math.abs(touch.clientY - longPressStartRef.current.y);
+          if (dx > 8 || dy > 8) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }
+
+        // Dragging a lifted or selected card
+        if (dragItem) {
+          if (e.cancelable) e.preventDefault();
+          const coords = getCanvasCoords(touch.clientX, touch.clientY);
+          const newX = Math.round(coords.x - cardDragOffsetRef.current.x);
+          const newY = Math.round(coords.y - cardDragOffsetRef.current.y);
+          updateCanvasPosition(dragItem, newX, newY);
+          return;
+        }
+
+        // Panning the infinite canvas
+        if (isPanning) {
+          if (e.cancelable) e.preventDefault();
+          const dx = touch.clientX - panStartRef.current.x;
+          const dy = touch.clientY - panStartRef.current.y;
+          setPan({
+            x: panOriginRef.current.x + dx,
+            y: panOriginRef.current.y + dy,
+          });
+        }
+      }
+    };
+
+    container.addEventListener('touchmove', onNativeTouchMove, { passive: false });
+    return () => {
+      container.removeEventListener('touchmove', onNativeTouchMove);
+    };
+  }, [isPanning, dragItem, zoom, pan, items]);
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    // Clear long-press timer if touch ended early
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
     if (e.touches.length === 0) {
+      if (liftedCardId) {
+        if ('vibrate' in navigator) {
+          try {
+            navigator.vibrate([15]);
+          } catch {}
+        }
+      }
       setIsPanning(false);
       setDragItem(null);
+      setLiftedCardId(null);
       pinchStartDistRef.current = null;
     } else if (e.touches.length === 1) {
       pinchStartDistRef.current = null;
@@ -265,7 +353,7 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
         <div className="flex items-center bg-surface-elevated/80 rounded-xl p-0.5 border border-border/60">
           <button
             onClick={() => setMode('pan')}
-            title="Hand Mode: Drag anywhere to pan canvas"
+            title="Hand Mode: Drag anywhere to pan canvas. Hold card to lift & move."
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === 'pan'
                 ? 'bg-primary text-primary-text shadow-xs'
@@ -277,7 +365,7 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
           </button>
           <button
             onClick={() => setMode('move')}
-            title="Move Mode: Drag cards to reposition them"
+            title="Move Mode: Tap and drag cards directly"
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === 'move'
                 ? 'bg-primary text-primary-text shadow-xs'
@@ -343,9 +431,9 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
 
       {/* Floating Gesture Hint Banner (Fades out automatically) */}
       {showGestureHint && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 px-3.5 py-1.5 rounded-full bg-surface/90 backdrop-blur-md border border-border shadow-lg text-[11px] text-text-muted flex items-center gap-2 animate-fade-in pointer-events-none">
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 px-3.5 py-1.5 rounded-full bg-surface/90 backdrop-blur-md border border-border shadow-lg text-[11px] text-text-muted flex items-center gap-2 animate-fade-in pointer-events-none whitespace-nowrap">
           <Sparkles className="w-3.5 h-3.5 text-primary" />
-          <span>Pinch with 2 fingers to zoom • Pan with 1 finger</span>
+          <span>Touch & hold card to lift • Pinch to zoom • Drag to pan</span>
         </div>
       )}
 
@@ -391,7 +479,6 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
         onMouseUp={handleMouseUp}
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
         className={`w-full h-full relative overflow-hidden canvas-bg ${
@@ -423,18 +510,32 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
               const x = item.canvas_x ?? (Math.cos((idx * 2 * Math.PI) / items.length) * 340);
               const y = item.canvas_y ?? (Math.sin((idx * 2 * Math.PI) / items.length) * 240);
               const isHighlighted = highlightedNodeId === item.id;
+              const isLifted = liftedCardId === item.id;
 
               return (
                 <div
                   key={item.id}
-                  className={`absolute pointer-events-auto transition-shadow duration-300 ${
-                    isHighlighted ? 'ring-4 ring-primary rounded-2xl shadow-glow-lg z-30 scale-[1.02]' : 'z-10'
+                  data-card-id={item.id}
+                  className={`absolute pointer-events-auto transition-all duration-200 ${
+                    isLifted
+                      ? 'scale-[1.07] -translate-y-4 shadow-2xl ring-4 ring-primary rounded-2xl z-50 cursor-grabbing'
+                      : isHighlighted
+                      ? 'ring-4 ring-primary rounded-2xl shadow-glow-lg z-30 scale-[1.02]'
+                      : 'z-10'
                   }`}
                   style={{
                     transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
                     width: 'clamp(260px, 80vw, 320px)',
                   }}
                 >
+                  {/* Floating Lift Aura Pill when card is lifted */}
+                  {isLifted && (
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-primary text-primary-text text-[10px] font-bold shadow-xl flex items-center gap-1.5 animate-pulse whitespace-nowrap pointer-events-none z-50">
+                      <Sparkles className="w-3 h-3 text-amber-300" />
+                      <span>Lifted • Drag to move</span>
+                    </div>
+                  )}
+
                   {/* Drag Handle Bar */}
                   <div
                     data-item-id={item.id}
