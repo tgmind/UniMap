@@ -13,6 +13,7 @@ import { AuthModal } from './components/AuthModal';
 import { ConfigModal } from './components/ConfigModal';
 import { MediaLightboxModal } from './components/MediaLightboxModal';
 import { AuthScreen } from './components/AuthScreen';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { ViewMode } from './types';
 
 const MainApp: React.FC = () => {
@@ -79,8 +80,8 @@ const MainApp: React.FC = () => {
         onOpenConfigModal={() => setIsConfigOpen(true)}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6">
+      {/* Main Content Area with Bottom Padding for Mobile Nav */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 pb-28 md:pb-8">
         {viewMode === 'bento' && (
           <BentoView
             onOpenAddModal={() => setIsAddOpen(true)}
@@ -98,6 +99,15 @@ const MainApp: React.FC = () => {
           />
         )}
       </main>
+
+      {/* Ergonomic Mobile Bottom Nav & Floating Action Button */}
+      <MobileBottomNav
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        onOpenAddModal={() => setIsAddOpen(true)}
+        onOpenFleetModal={() => setIsFleetOpen(true)}
+        onOpenStorageModal={() => setIsStorageOpen(true)}
+      />
 
       {/* Modals */}
       <AddItemModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} />

@@ -41,6 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { user, signOut, isGuestMode, devices } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   const mbUsed = (storageQuota.totalBytes / (1024 * 1024)).toFixed(1);
   const percentUsed = Math.min(100, (storageQuota.totalBytes / storageQuota.maxBytes) * 100);
@@ -60,8 +61,8 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </div>
 
-          {/* Segmented View Switcher (Apple / Google Style) */}
-          <nav className="flex items-center p-1 rounded-xl bg-surface-elevated border border-border">
+          {/* Segmented View Switcher (Desktop Only - Mobile uses Bottom Nav) */}
+          <nav className="hidden md:flex items-center p-1 rounded-xl bg-surface-elevated border border-border">
             <button
               onClick={() => setViewMode('bento')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
@@ -71,18 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Grid</span>
-            </button>
-            <button
-              onClick={() => setViewMode('canvas')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                viewMode === 'canvas'
-                  ? 'bg-surface text-text-main shadow-sm'
-                  : 'text-text-muted hover:text-text-main'
-              }`}
-            >
-              <Compass className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Canvas</span>
+              <span>Grid</span>
             </button>
             <button
               onClick={() => setViewMode('timeline')}
@@ -93,12 +83,23 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Timeline</span>
+              <span>Timeline</span>
+            </button>
+            <button
+              onClick={() => setViewMode('canvas')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'canvas'
+                  ? 'bg-surface text-text-main shadow-sm'
+                  : 'text-text-muted hover:text-text-main'
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>Canvas</span>
             </button>
           </nav>
         </div>
 
-        {/* Center: Search Field */}
+        {/* Center: Desktop Search Field */}
         <div className="hidden md:flex flex-1 max-w-md mx-2">
           <div className="relative w-full">
             <Search className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -117,14 +118,27 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Section: Controls & Actions */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Subtle Storage Usage Meter */}
+          {/* Mobile Search Toggle Button */}
+          <button
+            onClick={() => setShowMobileSearch(!showMobileSearch)}
+            title="Search notes"
+            className={`md:hidden p-2 rounded-xl border transition-colors ${
+              showMobileSearch || searchQuery
+                ? 'bg-primary/10 border-primary text-primary'
+                : 'text-text-muted hover:text-text-main bg-surface-elevated border border-border'
+            }`}
+          >
+            <Search className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Desktop Storage Usage Meter */}
           <button
             onClick={onOpenStorageModal}
             title="Free Storage Status (1 GB Supabase Quota)"
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-elevated border border-border transition-colors font-mono"
+            className="hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-elevated border border-border transition-colors font-mono"
           >
             <HardDrive className="w-3.5 h-3.5 text-accent" />
-            <span className="text-[11px] hidden sm:inline">{mbUsed} MB</span>
+            <span className="text-[11px]">{mbUsed} MB</span>
             {/* Micro Progress Bar */}
             <div className="w-10 h-1.5 rounded-full bg-surface border border-border overflow-hidden">
               <div
@@ -136,11 +150,11 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </button>
 
-          {/* Connected Device Fleet Button */}
+          {/* Desktop Connected Device Fleet Button */}
           <button
             onClick={onOpenFleetModal}
             title="Device Fleet & QR Pairing"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-elevated border border-border transition-colors"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-elevated border border-border transition-colors"
           >
             <Laptop className="w-3.5 h-3.5 text-accent" />
             <span className="text-[11px] font-medium hidden lg:inline">Fleet</span>
@@ -161,13 +175,13 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* Primary Action Button: "Add Item" */}
+          {/* Desktop Primary Action Button: "Add Item" */}
           <button
             onClick={onOpenAddModal}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-primary-text text-xs font-semibold shadow-sm transition-all active:scale-95"
+            className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-primary-text text-xs font-semibold shadow-sm transition-all active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">New</span>
+            <span>New</span>
           </button>
 
           {/* User Account Menu */}
@@ -238,6 +252,31 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Mobile Expandable Search Drawer */}
+      {showMobileSearch && (
+        <div className="md:hidden px-4 pb-3 pt-1 border-t border-border/50 animate-fade-in bg-surface/95">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-text-faint absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              autoFocus
+              placeholder="Search notes, code, links, HTML..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-9 pr-9 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-text-muted hover:text-text-main p-1"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 };
