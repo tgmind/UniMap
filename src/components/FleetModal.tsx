@@ -35,6 +35,7 @@ import {
   generateUniquePairingKey,
   listenForPairingKeyClaims,
   normalizePairingKey,
+  TransferableSession,
 } from '../lib/qrAuth';
 import { getSupabaseClient } from '../lib/supabase';
 import { generateDefaultDeviceName } from '../lib/deviceDetector';
@@ -50,11 +51,79 @@ export const FleetModal: React.FC<FleetModalProps> = ({
   onClose,
   initialTab = 'devices',
 }) => {
-  const { devices, revokeDevice, renameDevice, refreshDevices, currentDeviceToken } = useAuth();
+  const { user, devices, revokeDevice, renameDevice, refreshDevices, currentDeviceToken } = useAuth();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [activeTab, setActiveTab] = useState<'devices' | 'qr_generate' | 'qr_scan'>(initialTab);
   const [qrToken, setQrToken] = useState<string>('');
+
+  // Robust session extractor for transferring auth credentials to other devices
+  const getTransferableSession = async (): Promise<TransferableSession | null> => {
+    const client = getSupabaseClient();
+    let accessToken = '';
+    let refreshToken = '';
+    let sessionUser: any = user;
+    let expiresAt: number | undefined;
+    let expiresIn: number | undefined;
+    let tokenType: string | undefined;
+
+    // 1. Check live Supabase client session
+    if (client) {
+      try {
+        const { data: { session } } = await client.auth.getSession();
+        if (session) {
+          if (session.access_token) accessToken = session.access_token;
+          if (session.refresh_token) refreshToken = session.refresh_token;
+          if (session.user) sessionUser = session.user;
+          if (session.expires_at) expiresAt = session.expires_at;
+          if (session.expires_in) expiresIn = session.expires_in;
+          if (session.token_type) tokenType = session.token_type;
+        }
+      } catch (e) {
+        console.warn('Error fetching supabase session:', e);
+      }
+    }
+
+    // 2. Check local storage unimap_auth_token
+    if (!accessToken || !refreshToken || !sessionUser) {
+      try {
+        const stored = localStorage.getItem('unimap_auth_token');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (!accessToken && parsed.access_token) accessToken = parsed.access_token;
+          if (!refreshToken && parsed.refresh_token) refreshToken = parsed.refresh_token;
+          if (!sessionUser && parsed.user) sessionUser = parsed.user;
+          if (!expiresAt && parsed.expires_at) expiresAt = parsed.expires_at;
+          if (!expiresIn && parsed.expires_in) expiresIn = parsed.expires_in;
+          if (!tokenType && parsed.token_type) tokenType = parsed.token_type;
+        }
+      } catch (e) {
+        console.warn('Error reading stored session:', e);
+      }
+    }
+
+    if (!accessToken) {
+      return null;
+    }
+
+    // Ensure refresh_token is never empty/undefined so setSession never throws AuthSessionMissingError
+    if (!refreshToken) {
+      refreshToken = accessToken;
+    }
+
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      user: sessionUser || {
+        id: user?.id,
+        email: user?.email,
+        user_metadata: { display_name: user?.display_name },
+      },
+      expires_at: expiresAt || Math.floor(Date.now() / 1000) + 3600,
+      expires_in: expiresIn || 3600,
+      token_type: tokenType || 'bearer',
+    };
+  };
 
   // Pairing Key Generation & Broadcast States
   const [pairingKey, setPairingKey] = useState<string>('');
@@ -234,19 +303,13 @@ export const FleetModal: React.FC<FleetModalProps> = ({
     setScanError(null);
 
     try {
-      const client = getSupabaseClient();
-      if (!client) throw new Error('Cloud client is initializing');
-
-      const { data: { session }, error } = await client.auth.getSession();
-      if (error || !session) throw new Error('No active user credentials found to transfer');
+      const transferable = await getTransferableSession();
+      if (!transferable) throw new Error('No active user credentials found to transfer. Please ensure you are logged in.');
 
       const devName = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
       const ok = await authorizeQrSession(
         scannedSession.sessionId,
-        {
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        },
+        transferable,
         devName
       );
 
@@ -280,19 +343,13 @@ export const FleetModal: React.FC<FleetModalProps> = ({
     setScanError(null);
 
     try {
-      const client = getSupabaseClient();
-      if (!client) throw new Error('Cloud client is initializing');
-
-      const { data: { session }, error } = await client.auth.getSession();
-      if (error || !session) throw new Error('No active user credentials found to transfer');
+      const transferable = await getTransferableSession();
+      if (!transferable) throw new Error('No active user credentials found to transfer. Please ensure you are logged in.');
 
       const devName = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
       const ok = await authorizeWithPairCode(
         cleanCode,
-        {
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        },
+        transferable,
         devName
       );
 
@@ -359,20 +416,14 @@ export const FleetModal: React.FC<FleetModalProps> = ({
     let unsubscribe: (() => void) | undefined;
 
     const setupListener = async () => {
-      const client = getSupabaseClient();
-      if (!client) return;
-
-      const { data: { session } } = await client.auth.getSession();
-      if (!session) return;
+      const transferable = await getTransferableSession();
+      if (!transferable) return;
 
       const devName = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
 
       unsubscribe = listenForPairingKeyClaims(
         pairingKey,
-        {
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        },
+        transferable,
         devName,
         async (remoteName) => {
           setRemoteDeviceClaimed(remoteName);

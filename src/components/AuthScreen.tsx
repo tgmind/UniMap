@@ -118,7 +118,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
       onAuthorized: async (payload) => {
         setQrStatus('authorizing');
         try {
-          const res = await signInWithSession(payload.access_token, payload.refresh_token);
+          const res = await signInWithSession(
+            payload.access_token,
+            payload.refresh_token,
+            payload.user,
+            {
+              expires_at: payload.expires_at,
+              expires_in: payload.expires_in,
+              token_type: payload.token_type,
+            }
+          );
           if (res.error) {
             setErrorMsg(res.error);
             setQrStatus('waiting');
@@ -206,7 +215,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
       await claimPairingKey(normalized, devName, {
         onAuthorized: async (payload) => {
           try {
-            const res = await signInWithSession(payload.access_token, payload.refresh_token);
+            const res = await signInWithSession(
+              payload.access_token,
+              payload.refresh_token,
+              payload.user,
+              {
+                expires_at: payload.expires_at,
+                expires_in: payload.expires_in,
+                token_type: payload.token_type,
+              }
+            );
             if (res.error) {
               setErrorMsg(res.error);
               setIsClaimingPairing(false);

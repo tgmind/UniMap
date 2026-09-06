@@ -17,8 +17,21 @@ export interface QrLoginPayload {
 export interface QrAuthorizedPayload {
   access_token: string;
   refresh_token: string;
+  user?: any;
+  expires_at?: number;
+  expires_in?: number;
+  token_type?: string;
   deviceName?: string;
 }
+
+export type TransferableSession = {
+  access_token: string;
+  refresh_token: string;
+  user?: any;
+  expires_at?: number;
+  expires_in?: number;
+  token_type?: string;
+};
 
 export interface QrScannedPayload {
   deviceName?: string;
@@ -187,7 +200,7 @@ export async function notifyQrScanned(sessionId: string, deviceName: string): Pr
  */
 export async function authorizeQrSession(
   sessionId: string,
-  session: { access_token: string; refresh_token: string },
+  session: TransferableSession,
   deviceName: string
 ): Promise<boolean> {
   const client = getSupabaseClient();
@@ -208,6 +221,10 @@ export async function authorizeQrSession(
             payload: {
               access_token: session.access_token,
               refresh_token: session.refresh_token,
+              user: session.user,
+              expires_at: session.expires_at,
+              expires_in: session.expires_in,
+              token_type: session.token_type,
               deviceName,
             },
           });
@@ -232,7 +249,7 @@ export async function authorizeQrSession(
  */
 export async function authorizeWithPairCode(
   code: string,
-  session: { access_token: string; refresh_token: string },
+  session: TransferableSession,
   deviceName: string
 ): Promise<boolean> {
   const client = getSupabaseClient();
@@ -254,6 +271,10 @@ export async function authorizeWithPairCode(
             payload: {
               access_token: session.access_token,
               refresh_token: session.refresh_token,
+              user: session.user,
+              expires_at: session.expires_at,
+              expires_in: session.expires_in,
+              token_type: session.token_type,
               deviceName,
             },
           });
@@ -301,7 +322,7 @@ export function normalizePairingKey(input: string): string {
  */
 export function listenForPairingKeyClaims(
   pairingKey: string,
-  session: { access_token: string; refresh_token: string },
+  session: TransferableSession,
   deviceName: string,
   onClaimed?: (remoteDeviceName: string) => void
 ): () => void {
@@ -323,6 +344,10 @@ export function listenForPairingKeyClaims(
           payload: {
             access_token: session.access_token,
             refresh_token: session.refresh_token,
+            user: session.user,
+            expires_at: session.expires_at,
+            expires_in: session.expires_in,
+            token_type: session.token_type,
             deviceName,
           },
         });
