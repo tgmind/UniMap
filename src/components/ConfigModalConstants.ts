@@ -8,7 +8,7 @@ create table if not exists public.profiles (
   id uuid references auth.users on delete cascade primary key,
   email text not null,
   display_name text,
-  preferred_theme text default 'slate',
+  preferred_theme text default 'dark',
   storage_bytes_used bigint default 0,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );

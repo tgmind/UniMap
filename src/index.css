@@ -2,8 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Default: Google Slate Dark (Clean, Enterprise Material Dark) */
+:root, [data-theme="dark"] {
+  /* Dark Mode (Grey Colours / Slate Neutral Enterprise Dark) */
   --bg-main: #0E1015;
   --bg-surface: #16181F;
   --bg-surface-elevated: #1E212B;
@@ -21,45 +21,7 @@
   --badge-bg: rgba(255, 255, 255, 0.05);
 }
 
-/* Meta Horizon (Deep Corporate Navy) */
-[data-theme="meta"] {
-  --bg-main: #0B0F19;
-  --bg-surface: #111827;
-  --bg-surface-elevated: #1F2937;
-  --bg-surface-hover: #283548;
-  --border-color: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --primary: #2563EB;
-  --primary-hover: #1D4ED8;
-  --primary-text: #FFFFFF;
-  --primary-glow: rgba(37, 99, 235, 0.25);
-  --accent: #60A5FA;
-  --text-main: #F9FAFB;
-  --text-muted: #9CA3AF;
-  --text-faint: #6B7280;
-  --badge-bg: rgba(37, 99, 235, 0.08);
-}
-
-/* Apple Onyx (Monochrome Pure Elegance) */
-[data-theme="apple"] {
-  --bg-main: #000000;
-  --bg-surface: #0C0C0E;
-  --bg-surface-elevated: #161619;
-  --bg-surface-hover: #212126;
-  --border-color: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.2);
-  --primary: #FFFFFF;
-  --primary-hover: #E4E4E7;
-  --primary-text: #000000;
-  --primary-glow: rgba(255, 255, 255, 0.15);
-  --accent: #A1A1AA;
-  --text-main: #F4F4F5;
-  --text-muted: #A1A1AA;
-  --text-faint: #52525B;
-  --badge-bg: rgba(255, 255, 255, 0.06);
-}
-
-/* Editorial Canvas (Clean Studio Paper Light) */
+/* Light Mode: Editorial Canvas (Clean Studio Paper White Mode) */
 [data-theme="light"] {
   --bg-main: #F8F9FA;
   --bg-surface: #FFFFFF;

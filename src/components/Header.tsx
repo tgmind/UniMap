@@ -7,7 +7,8 @@ import {
   Plus,
   HardDrive,
   Laptop,
-  Palette,
+  Moon,
+  Sun,
   User,
   LogOut,
   SlidersHorizontal,
@@ -16,7 +17,6 @@ import { ViewMode } from '../types';
 import { useItems } from '../context/ItemContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { ThemeSelector } from './ThemeSelector';
 
 interface HeaderProps {
   viewMode: ViewMode;
@@ -39,8 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { searchQuery, setSearchQuery, storageQuota } = useItems();
   const { user, signOut, isGuestMode, devices } = useAuth();
-  const { activeThemeDef } = useTheme();
-  const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const { theme, toggleTheme } = useTheme();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const mbUsed = (storageQuota.totalBytes / (1024 * 1024)).toFixed(1);
@@ -148,17 +147,19 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           </button>
 
-          {/* Theme Switcher Toggle */}
-          <div className="relative">
-            <button
-              onClick={() => setShowThemeMenu(!showThemeMenu)}
-              title={`Theme: ${activeThemeDef.name}`}
-              className="p-2 rounded-xl text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-elevated border border-border transition-colors"
-            >
-              <Palette className="w-3.5 h-3.5" />
-            </button>
-            {showThemeMenu && <ThemeSelector onClose={() => setShowThemeMenu(false)} />}
-          </div>
+          {/* Theme Switcher Toggle (1-Click Dark/Light Mode) */}
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to Light Mode (Editorial Canvas)' : 'Switch to Dark Mode (Grey)'}
+            className="p-2 rounded-xl text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-hover border border-border transition-colors flex items-center justify-center group"
+            aria-label="Toggle dark or light theme"
+          >
+            {theme === 'dark' ? (
+              <Moon className="w-3.5 h-3.5 text-accent transition-transform group-hover:scale-110" />
+            ) : (
+              <Sun className="w-3.5 h-3.5 text-amber-500 transition-transform group-hover:scale-110" />
+            )}
+          </button>
 
           {/* Primary Action Button: "Add Item" */}
           <button

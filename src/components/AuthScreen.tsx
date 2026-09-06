@@ -14,10 +14,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Compass,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { ThemeSelector } from './ThemeSelector';
 
 interface AuthScreenProps {
   onEnterGuestMode: () => void;
@@ -25,7 +26,7 @@ interface AuthScreenProps {
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
   const { signIn, signUp } = useAuth();
-  const { activeThemeDef } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,7 +34,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,20 +75,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
           </span>
         </div>
 
-        {/* Theme Picker */}
-        <div className="relative">
-          <button
-            onClick={() => setShowThemeMenu(!showThemeMenu)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border text-xs font-medium text-text-muted hover:text-text-main transition-colors"
-          >
-            <span
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: activeThemeDef.primaryColor }}
-            />
-            <span className="hidden sm:inline">{activeThemeDef.name}</span>
-          </button>
-          {showThemeMenu && <ThemeSelector onClose={() => setShowThemeMenu(false)} />}
-        </div>
+        {/* Theme Toggle (1-Click Dark/Light Mode) */}
+        <button
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to Light Mode (Editorial Canvas)' : 'Switch to Dark Mode (Grey)'}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border text-xs font-medium text-text-muted hover:text-text-main transition-colors group"
+        >
+          {theme === 'dark' ? (
+            <>
+              <Moon className="w-3.5 h-3.5 text-accent transition-transform group-hover:scale-110" />
+              <span className="hidden sm:inline">Dark Mode</span>
+            </>
+          ) : (
+            <>
+              <Sun className="w-3.5 h-3.5 text-amber-500 transition-transform group-hover:scale-110" />
+              <span className="hidden sm:inline">Editorial Canvas</span>
+            </>
+          )}
+        </button>
       </header>
 
       {/* Main Grid */}

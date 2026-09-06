@@ -1,4 +1,4 @@
-export type ThemeMode = 'slate' | 'meta' | 'apple' | 'light';
+export type ThemeMode = 'dark' | 'light';
 
 export type ItemType = 'text' | 'link' | 'media' | 'html' | 'code';
 

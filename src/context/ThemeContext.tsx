@@ -13,37 +13,19 @@ interface ThemeDefinition {
 
 export const THEMES: ThemeDefinition[] = [
   {
-    id: 'slate',
-    name: 'Google Slate',
-    tagline: 'Refined Material Dark & Adaptive Blue',
+    id: 'dark',
+    name: 'Dark Mode',
+    tagline: 'Refined Slate & Neutral Greys',
     badgeBg: '#0E1015',
     primaryColor: '#3B82F6',
     accentColor: '#38BDF8',
     isDark: true,
   },
   {
-    id: 'meta',
-    name: 'Meta Horizon',
-    tagline: 'Deep Midnight Navy & Sapphire Accent',
-    badgeBg: '#0B0F19',
-    primaryColor: '#2563EB',
-    accentColor: '#60A5FA',
-    isDark: true,
-  },
-  {
-    id: 'apple',
-    name: 'Apple Onyx',
-    tagline: 'Pure Monochrome Titanium & OLED Pitch',
-    badgeBg: '#000000',
-    primaryColor: '#FFFFFF',
-    accentColor: '#A1A1AA',
-    isDark: true,
-  },
-  {
     id: 'light',
     name: 'Editorial Canvas',
-    tagline: 'Minimalist Clean Paper & Slate Ink',
-    badgeBg: '#F8F9FA',
+    tagline: 'Clean Studio Paper White Mode',
+    badgeBg: '#FFFFFF',
     primaryColor: '#0F172A',
     accentColor: '#2563EB',
     isDark: false,
@@ -53,6 +35,7 @@ export const THEMES: ThemeDefinition[] = [
 interface ThemeContextType {
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
+  toggleTheme: () => void;
   activeThemeDef: ThemeDefinition;
 }
 
@@ -60,16 +43,16 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('unimap_theme') as ThemeMode;
-    if (saved && THEMES.some((t) => t.id === saved)) return saved;
-    return 'slate';
+    const saved = localStorage.getItem('unimap_theme');
+    if (saved === 'light') return 'light';
+    return 'dark';
   });
 
   useEffect(() => {
-    if (theme === 'slate') {
-      document.documentElement.removeAttribute('data-theme');
+    if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
     } else {
-      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.removeAttribute('data-theme');
     }
     localStorage.setItem('unimap_theme', theme);
   }, [theme]);
@@ -78,10 +61,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setThemeState(newTheme);
   };
 
+  const toggleTheme = () => {
+    setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   const activeThemeDef = THEMES.find((t) => t.id === theme) || THEMES[0];
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, activeThemeDef }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, activeThemeDef }}>
       {children}
     </ThemeContext.Provider>
   );
