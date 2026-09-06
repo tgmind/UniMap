@@ -92,8 +92,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   return (
     <>
       {/* Floating Action Button (FAB)
-          Displayed in Timeline & Canvas views with smooth lifting above thin bar / expanded bar */}
-      {viewMode !== 'bento' && (
+          Displayed in Timeline view. In Canvas view, Add is integrated into the compact bottom switcher. */}
+      {viewMode === 'timeline' && (
         <button
           onClick={onOpenAddModal}
           title="Add New Item"

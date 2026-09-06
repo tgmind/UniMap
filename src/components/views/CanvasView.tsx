@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useItems } from '../../context/ItemContext';
 import { ItemCard } from '../ItemCard';
 import {
@@ -13,10 +13,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Plus,
 } from 'lucide-react';
 
 interface CanvasViewProps {
   onOpenMedia: (url: string, title: string) => void;
+  onOpenAddModal?: () => void;
   isNavVisible?: boolean;
   isHeaderVisible?: boolean;
 }
@@ -25,6 +27,7 @@ type InteractionMode = 'pan' | 'move';
 
 export const CanvasView: React.FC<CanvasViewProps> = ({
   onOpenMedia,
+  onOpenAddModal,
   isNavVisible = false,
   isHeaderVisible = true,
 }) => {
@@ -134,6 +137,94 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
     setHighlightedNodeId(target.id);
     setTimeout(() => setHighlightedNodeId(null), 2500);
   }, [items, zoom]);
+
+  // Helper to compute live/persisted position of any item by index
+  const getNodePosition = useCallback(
+    (item: (typeof items)[0], idx: number) => {
+      const defaultX = Math.cos((idx * 2 * Math.PI) / Math.max(1, items.length)) * 340;
+      const defaultY = Math.sin((idx * 2 * Math.PI) / Math.max(1, items.length)) * 240;
+      const posX = item.canvas_x ?? Math.round(defaultX);
+      const posY = item.canvas_y ?? Math.round(defaultY);
+      const x = liveDragPos && liveDragPos.id === item.id ? liveDragPos.x : posX;
+      const y = liveDragPos && liveDragPos.id === item.id ? liveDragPos.y : posY;
+      return { x, y };
+    },
+    [items, liveDragPos]
+  );
+
+  // Modern dotted arrow connectors showing chronological progression between cards
+  const connectors = useMemo(() => {
+    if (items.length < 2) return [];
+
+    const list: Array<{
+      id: string;
+      pathD: string;
+      midX: number;
+      midY: number;
+      fromNum: number;
+      toNum: number;
+    }> = [];
+
+    for (let i = 0; i < items.length - 1; i++) {
+      const source = items[i];
+      const target = items[i + 1];
+
+      const p1 = getNodePosition(source, i);
+      const p2 = getNodePosition(target, i + 1);
+
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist < 30) continue; // Skip if cards are stacked directly on top of each other
+
+      const theta = Math.atan2(dy, dx);
+      // Card bounding box dimensions (approx half-width & half-height)
+      const hw = 145;
+      const hh = 110;
+
+      const cosT = Math.cos(theta) || 0.0001;
+      const sinT = Math.sin(theta) || 0.0001;
+
+      // Exit point from source card boundary
+      const r1 = Math.min(Math.abs(hw / cosT), Math.abs(hh / sinT));
+      const actualR1 = Math.min(r1 + 8, dist * 0.42);
+      const sx = p1.x + Math.cos(theta) * actualR1;
+      const sy = p1.y + Math.sin(theta) * actualR1;
+
+      // Entry point into target card boundary (leaving space for arrowhead)
+      const r2 = Math.min(Math.abs(hw / cosT), Math.abs(hh / sinT));
+      const actualR2 = Math.min(r2 + 18, dist * 0.42);
+      const ex = p2.x - Math.cos(theta) * actualR2;
+      const ey = p2.y - Math.sin(theta) * actualR2;
+
+      // Gentle organic curve with perpendicular control offset
+      const lineLen = Math.hypot(ex - sx, ey - sy);
+      const curvature = Math.min(24, lineLen * 0.1);
+      const perpX = -Math.sin(theta) * curvature;
+      const perpY = Math.cos(theta) * curvature;
+
+      const cx1 = sx + (ex - sx) * 0.35 + perpX;
+      const cy1 = sy + (ey - sy) * 0.35 + perpY;
+      const cx2 = sx + (ex - sx) * 0.65 + perpX;
+      const cy2 = sy + (ey - sy) * 0.65 + perpY;
+
+      const pathD = `M ${sx.toFixed(1)} ${sy.toFixed(1)} C ${cx1.toFixed(1)} ${cy1.toFixed(1)}, ${cx2.toFixed(1)} ${cy2.toFixed(1)}, ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+      const midX = (sx + ex) / 2 + perpX * 0.6;
+      const midY = (sy + ey) / 2 + perpY * 0.6;
+
+      list.push({
+        id: `${source.id}->${target.id}`,
+        pathD,
+        midX,
+        midY,
+        fromNum: i + 1,
+        toNum: i + 2,
+      });
+    }
+
+    return list;
+  }, [items, getNodePosition]);
 
   // Exact screen clientX/Y to canvas (x, y) mapping
   const getCanvasCoords = (clientX: number, clientY: number) => {
@@ -485,40 +576,56 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
         </div>
       )}
 
-      {/* Bottom Floating Node Quick-Jump Navigator Dock */}
+      {/* Ultra-Compact & Thin Floating Node Switcher with Integrated Add Button */}
       {items.length > 0 && (
         <div
-          className={`absolute left-1/2 -translate-x-1/2 z-20 w-[92%] sm:w-auto max-w-md flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-surface/95 border border-border shadow-xl transition-all duration-300 ${
-            isNavVisible ? 'bottom-[88px] sm:bottom-6' : 'bottom-10 sm:bottom-6'
+          className={`absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full bg-surface/95 dark:bg-[#18222D]/95 border border-border shadow-xl backdrop-blur-md transition-all duration-300 max-w-[92vw] sm:max-w-md select-none ${
+            isNavVisible ? 'bottom-[84px] sm:bottom-5' : 'bottom-9 sm:bottom-5'
           }`}
         >
+          {/* Previous Node Button */}
           <button
             onClick={() => navigateToNode(activeNodeIdx - 1)}
-            title="Previous Node"
-            className="p-1.5 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-elevated active:scale-90 transition-all shrink-0"
+            title="Previous Card"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface-elevated active:scale-90 transition-all shrink-0"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 stroke-[2.2]" />
           </button>
 
+          {/* Active Card Quick-Jump Capsule */}
           <div
             onClick={() => navigateToNode(activeNodeIdx)}
-            className="flex-1 min-w-0 text-center cursor-pointer px-2 py-0.5 rounded-lg hover:bg-surface-elevated transition-colors"
-            title="Tap to center on this card"
+            className="flex items-center gap-1.5 px-2 py-0.5 min-w-0 cursor-pointer hover:bg-surface-elevated rounded-full transition-colors"
+            title="Tap to focus and center on this card"
           >
-            <p className="text-[10px] font-mono text-text-faint uppercase tracking-wider">
-              Node {activeNodeIdx + 1} of {items.length}
-            </p>
-            <p className="text-xs font-semibold text-text-main truncate">
-              {items[activeNodeIdx]?.title || 'Note'}
-            </p>
+            <span className="text-[10px] font-mono font-bold text-[#2481CC] dark:text-[#50A7EA] bg-[#2481CC]/10 dark:bg-[#50A7EA]/15 px-1.5 py-0.5 rounded-full shrink-0">
+              {Math.min(activeNodeIdx, items.length - 1) + 1}/{items.length}
+            </span>
+            <span className="text-xs font-medium text-text-main truncate max-w-[120px] sm:max-w-[180px]">
+              {items[Math.min(activeNodeIdx, items.length - 1)]?.title || 'Note'}
+            </span>
           </div>
 
+          {/* Next Node Button */}
           <button
             onClick={() => navigateToNode(activeNodeIdx + 1)}
-            title="Next Node"
-            className="p-1.5 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-elevated active:scale-90 transition-all shrink-0"
+            title="Next Card"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface-elevated active:scale-90 transition-all shrink-0"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4 stroke-[2.2]" />
+          </button>
+
+          {/* Sleek Vertical Divider */}
+          <div className="w-[1px] h-4 bg-border/80 mx-0.5 shrink-0" />
+
+          {/* Integrated Modern Compact Add Button */}
+          <button
+            onClick={onOpenAddModal}
+            title="Add New Card to Canvas"
+            className="flex items-center gap-1 h-7 px-2.5 rounded-full bg-[#2481CC] hover:bg-[#1E70B0] text-white text-xs font-semibold shadow-xs hover:shadow-md active:scale-95 transition-all shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span className="text-[11px] font-medium hidden xs:inline sm:inline">Add</span>
           </button>
         </div>
       )}
@@ -555,6 +662,76 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
             {/* Center Compass Origin Marker */}
             <div className="absolute pointer-events-auto -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-2xl bg-surface/90 backdrop-blur-md border border-border flex items-center justify-center text-text-muted shadow-sm hover:scale-110 transition-transform">
               <Compass className="w-5 h-5 text-primary" />
+            </div>
+
+            {/* Chronological Dotted Arrows Layer */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 overflow-visible pointer-events-none z-0">
+              <svg className="overflow-visible pointer-events-none" style={{ width: 1, height: 1 }}>
+                <defs>
+                  <marker
+                    id="canvas-dotted-arrow"
+                    viewBox="0 0 10 10"
+                    refX="7"
+                    refY="5"
+                    markerWidth="7"
+                    markerHeight="7"
+                    orient="auto"
+                  >
+                    <path d="M 0 1.5 L 8 5 L 0 8.5 L 2 5 Z" fill="#2481CC" />
+                  </marker>
+                </defs>
+
+                {connectors.map((c) => (
+                  <g key={c.id}>
+                    {/* Contrast backdrop stroke */}
+                    <path
+                      d={c.pathD}
+                      fill="none"
+                      stroke="var(--bg-main)"
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                      className="opacity-75"
+                    />
+                    {/* Modern Dotted Line */}
+                    <path
+                      d={c.pathD}
+                      fill="none"
+                      stroke="#2481CC"
+                      strokeWidth="2.5"
+                      strokeDasharray="6 6"
+                      strokeLinecap="round"
+                      markerEnd="url(#canvas-dotted-arrow)"
+                      className="opacity-85"
+                    />
+                    {/* Modern Chronology Sequence Badge Pill */}
+                    <g transform={`translate(${c.midX}, ${c.midY})`}>
+                      <rect
+                        x="-16"
+                        y="-7.5"
+                        width="32"
+                        height="15"
+                        rx="7.5"
+                        fill="var(--bg-surface)"
+                        stroke="#2481CC"
+                        strokeWidth="1"
+                        className="shadow-xs opacity-95"
+                      />
+                      <text
+                        x="0"
+                        y="3.5"
+                        textAnchor="middle"
+                        fill="#2481CC"
+                        fontSize="9"
+                        fontWeight="bold"
+                        fontFamily="monospace"
+                        className="select-none pointer-events-none"
+                      >
+                        {c.fromNum}➔{c.toNum}
+                      </text>
+                    </g>
+                  </g>
+                ))}
+              </svg>
             </div>
 
             {/* Nodes */}

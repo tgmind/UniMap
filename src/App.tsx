@@ -218,6 +218,7 @@ const MainApp: React.FC = () => {
         {viewMode === 'canvas' && (
           <CanvasView
             onOpenMedia={(url, title) => setLightboxData({ url, title })}
+            onOpenAddModal={() => setIsAddOpen(true)}
             isNavVisible={isBottomNavExpanded}
             isHeaderVisible={isChromeVisible}
           />
