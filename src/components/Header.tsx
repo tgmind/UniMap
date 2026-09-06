@@ -39,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenConfigModal,
 }) => {
   const { searchQuery, setSearchQuery, selectedType, setSelectedType, storageQuota } = useItems();
-  const { user, signOut, isDemoMode, devices } = useAuth();
+  const { user, signOut, isGuestMode, devices } = useAuth();
   const { activeThemeDef } = useTheme();
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -203,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <p className="text-[10px] text-text-muted font-mono truncate">
                     {user?.email || 'local.vault@unimap'}
                   </p>
-                  {isDemoMode && (
+                  {isGuestMode && (
                     <span className="inline-block mt-1 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
                       Local Offline Mode
                     </span>
@@ -216,7 +216,7 @@ export const Header: React.FC<HeaderProps> = ({
                     className="w-full text-left px-3 py-1.5 rounded-lg text-text-main hover:bg-surface-hover flex items-center gap-2"
                   >
                     <User className="w-3.5 h-3.5 text-accent" />
-                    <span>{isDemoMode ? 'Log In / Sign Up' : 'Account Settings'}</span>
+                    <span>{isGuestMode ? 'Log In / Sign Up' : 'Account Settings'}</span>
                   </button>
                   <button
                     onClick={onOpenConfigModal}
@@ -227,7 +227,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 </div>
 
-                {!isDemoMode && (
+                {!isGuestMode && (
                   <div className="pt-1 border-t border-border/50">
                     <button
                       onClick={() => signOut()}

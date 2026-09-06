@@ -21,7 +21,8 @@ interface AuthContextType {
   revokeDevice: (deviceId: string) => Promise<void>;
   renameDevice: (deviceId: string, name: string) => Promise<void>;
   refreshDevices: () => Promise<void>;
-  isDemoMode: boolean;
+  isGuestMode: boolean;
+  enterGuestMode: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,7 +31,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [devices, setDevices] = useState<ConnectedDevice[]>([]);
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isGuestMode, setIsGuestMode] = useState(() => {
+    return localStorage.getItem('unimap_guest_mode') === 'true';
+  });
 
   const deviceToken = getDeviceToken();
   const { isConfigured } = getSupabaseConfig();
@@ -40,16 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initAuth = async () => {
       const client = getSupabaseClient();
       if (!client) {
-        // Fallback to offline local study vault mode
-        const localUser: UserProfile = {
-          id: 'local_study_user',
-          email: 'offline.scholar@unimap.local',
-          display_name: 'Local Scholar',
-          storage_bytes_used: 0,
-        };
-        setUser(localUser);
-        setIsDemoMode(true);
-        registerCurrentDeviceLocally();
+        // If Supabase is not configured yet, allow guest mode
         setIsLoading(false);
         return;
       }
@@ -63,21 +57,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             display_name: session.user.user_metadata?.display_name || session.user.email?.split('@')[0],
           };
           setUser(u);
+          setIsGuestMode(false);
+          localStorage.removeItem('unimap_guest_mode');
           await registerCurrentDeviceOnline(u.id);
           await fetchDevicesOnline(u.id);
-        } else {
-          // Check if user previously logged in or start guest mode
-          const localUser: UserProfile = {
-            id: 'guest_student',
-            email: 'guest@unimap.local',
-            display_name: 'Exam Scholar',
-          };
-          setUser(localUser);
-          setIsDemoMode(true);
-          registerCurrentDeviceLocally();
         }
 
-        // Listen for auth changes
+        // Listen for auth state changes
         const { data: authListener } = client.auth.onAuthStateChange(async (event, session) => {
           if (event === 'SIGNED_IN' && session?.user) {
             const u: UserProfile = {
@@ -86,7 +72,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               display_name: session.user.user_metadata?.display_name || session.user.email?.split('@')[0],
             };
             setUser(u);
-            setIsDemoMode(false);
+            setIsGuestMode(false);
+            localStorage.removeItem('unimap_guest_mode');
             await registerCurrentDeviceOnline(u.id);
             await fetchDevicesOnline(u.id);
           } else if (event === 'SIGNED_OUT') {
@@ -103,7 +90,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       } catch (err) {
         console.error('Auth initialization error:', err);
-        setIsDemoMode(true);
       } finally {
         setIsLoading(false);
       }
@@ -111,6 +97,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initAuth();
   }, [isConfigured]);
+
+  const enterGuestMode = () => {
+    setIsGuestMode(true);
+    localStorage.setItem('unimap_guest_mode', 'true');
+    const localUser: UserProfile = {
+      id: 'local_study_user',
+      email: 'offline.scholar@unimap.local',
+      display_name: 'Local Scholar',
+    };
+    setUser(localUser);
+    registerCurrentDeviceLocally();
+  };
 
   const registerCurrentDeviceLocally = () => {
     const current: ConnectedDevice = {
@@ -146,15 +144,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         is_revoked: false,
       };
 
-      const { data, error } = await client
+      await client
         .from('devices')
-        .upsert(payload, { onConflict: 'user_id,device_token' })
-        .select()
-        .single();
-
-      if (error) {
-        console.warn('Could not register device online (table may need creation):', error.message);
-      }
+        .upsert(payload, { onConflict: 'user_id,device_token' });
     } catch (err) {
       console.warn('Device registration skipped:', err);
     }
@@ -202,7 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, pass: string) => {
     const client = getSupabaseClient();
     if (!client) {
-      return { error: 'Supabase credentials not configured yet. Please configure in Settings.' };
+      return { error: 'Cloud backend is initializing. Please try again in a moment.' };
     }
     const { error } = await client.auth.signInWithPassword({ email, password: pass });
     if (error) return { error: error.message };
@@ -212,7 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, pass: string, name?: string) => {
     const client = getSupabaseClient();
     if (!client) {
-      return { error: 'Supabase credentials not configured yet. Please configure in Settings.' };
+      return { error: 'Cloud backend is initializing. Please try again in a moment.' };
     }
     const { error } = await client.auth.signUp({
       email,
@@ -231,9 +223,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await client.auth.signOut();
     }
     localStorage.removeItem('unimap_auth_token');
+    localStorage.removeItem('unimap_guest_mode');
     setUser(null);
-    setIsDemoMode(true);
-    registerCurrentDeviceLocally();
+    setIsGuestMode(false);
+    setDevices([]);
   };
 
   const revokeDevice = async (deviceId: string) => {
@@ -241,10 +234,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const targetDev = devices.find((d) => d.id === deviceId);
 
     if (client && targetDev) {
-      // Mark revoked in database
       await client.from('devices').update({ is_revoked: true }).eq('id', deviceId);
 
-      // Broadcast instant force_logout event to that device's channel
       const channel = client.channel(`device_revoke_${targetDev.device_token}`);
       await channel.subscribe();
       await channel.send({
@@ -268,7 +259,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshDevices = async () => {
-    if (user && !isDemoMode) {
+    if (user && !isGuestMode) {
       await fetchDevicesOnline(user.id);
     }
   };
@@ -287,7 +278,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         revokeDevice,
         renameDevice,
         refreshDevices,
-        isDemoMode,
+        isGuestMode,
+        enterGuestMode,
       }}
     >
       {children}

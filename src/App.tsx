@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ItemProvider } from './context/ItemContext';
 import { Header } from './components/Header';
 import { BentoView } from './components/views/BentoView';
@@ -12,9 +12,11 @@ import { FleetModal } from './components/FleetModal';
 import { AuthModal } from './components/AuthModal';
 import { ConfigModal } from './components/ConfigModal';
 import { MediaLightboxModal } from './components/MediaLightboxModal';
+import { AuthScreen } from './components/AuthScreen';
 import { ViewMode } from './types';
 
 const MainApp: React.FC = () => {
+  const { user, isLoading, enterGuestMode } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('bento');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isStorageOpen, setIsStorageOpen] = useState(false);
@@ -25,7 +27,7 @@ const MainApp: React.FC = () => {
   // Lightbox
   const [lightboxData, setLightboxData] = useState<{ url: string; title: string } | null>(null);
 
-  // Global keyboard shortcut: Ctrl+K or Cmd+K to focus search or add item
+  // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -43,6 +45,26 @@ const MainApp: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-accent p-0.5 animate-pulse">
+            <div className="w-full h-full bg-background rounded-[14px] flex items-center justify-center">
+              <img src="/logo.svg" alt="UniMap" className="w-7 h-7" />
+            </div>
+          </div>
+          <p className="text-xs text-text-muted font-mono animate-pulse">Initializing UniMap Vault...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is not authenticated, show modern landing & login screen
+  if (!user) {
+    return <AuthScreen onEnterGuestMode={enterGuestMode} />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-text-main flex flex-col selection:bg-primary selection:text-white">
