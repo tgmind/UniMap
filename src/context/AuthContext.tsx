@@ -17,6 +17,7 @@ interface AuthContextType {
   devices: ConnectedDevice[];
   signIn: (email: string, pass: string) => Promise<{ error?: string }>;
   signUp: (email: string, pass: string, name?: string) => Promise<{ error?: string }>;
+  signInWithSession: (accessToken: string, refreshToken: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   revokeDevice: (deviceId: string) => Promise<void>;
   renameDevice: (deviceId: string, name: string) => Promise<void>;
@@ -183,6 +184,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return {};
   };
 
+  const signInWithSession = async (accessToken: string, refreshToken: string) => {
+    const client = getSupabaseClient();
+    if (!client) {
+      return { error: 'Cloud backend is initializing. Please try again in a moment.' };
+    }
+    try {
+      const { data, error } = await client.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (error) return { error: error.message };
+
+      if (data.session?.user) {
+        const u: UserProfile = {
+          id: data.session.user.id,
+          email: data.session.user.email || '',
+          display_name:
+            data.session.user.user_metadata?.display_name ||
+            data.session.user.email?.split('@')[0],
+        };
+        setUser(u);
+        await registerCurrentDeviceOnline(u.id);
+        await fetchDevicesOnline(u.id);
+      }
+      return {};
+    } catch (err: any) {
+      return { error: err.message || 'Failed to authenticate session' };
+    }
+  };
+
   const signOut = async () => {
     const client = getSupabaseClient();
     if (client) {
@@ -239,6 +270,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         devices,
         signIn,
         signUp,
+        signInWithSession,
         signOut,
         revokeDevice,
         renameDevice,

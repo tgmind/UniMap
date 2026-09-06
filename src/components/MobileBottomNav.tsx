@@ -7,7 +7,7 @@ interface MobileBottomNavProps {
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   onOpenAddModal: () => void;
-  onOpenFleetModal: () => void;
+  onOpenFleetModal: (tab?: 'devices' | 'qr_generate' | 'qr_scan') => void;
   onOpenStorageModal: () => void;
   isVisible?: boolean;
   onWake?: () => void;

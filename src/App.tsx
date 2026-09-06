@@ -24,8 +24,14 @@ const MainApp: React.FC = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isStorageOpen, setIsStorageOpen] = useState(false);
   const [isFleetOpen, setIsFleetOpen] = useState(false);
+  const [fleetInitialTab, setFleetInitialTab] = useState<'devices' | 'qr_generate' | 'qr_scan'>('devices');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+  const handleOpenFleet = useCallback((tab?: 'devices' | 'qr_generate' | 'qr_scan') => {
+    setFleetInitialTab(tab || 'devices');
+    setIsFleetOpen(true);
+  }, []);
 
   // Modern PWA Installation Hook
   const { isIOS, showInstallPrompt, promptInstall, dismissInstallPrompt } = usePwaInstall();
@@ -187,7 +193,7 @@ const MainApp: React.FC = () => {
         setViewMode={setViewMode}
         onOpenAddModal={() => setIsAddOpen(true)}
         onOpenStorageModal={() => setIsStorageOpen(true)}
-        onOpenFleetModal={() => setIsFleetOpen(true)}
+        onOpenFleetModal={handleOpenFleet}
         onOpenAuthModal={() => setIsAuthOpen(true)}
         onOpenConfigModal={() => setIsConfigOpen(true)}
         isChromeVisible={isChromeVisible}
@@ -230,7 +236,7 @@ const MainApp: React.FC = () => {
         viewMode={viewMode}
         setViewMode={setViewMode}
         onOpenAddModal={() => setIsAddOpen(true)}
-        onOpenFleetModal={() => setIsFleetOpen(true)}
+        onOpenFleetModal={handleOpenFleet}
         onOpenStorageModal={() => setIsStorageOpen(true)}
         isExpanded={isBottomNavExpanded}
         onExpandChange={setIsBottomNavExpanded}
@@ -239,7 +245,11 @@ const MainApp: React.FC = () => {
       {/* Modals */}
       <AddItemModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} />
       <StorageMeterModal isOpen={isStorageOpen} onClose={() => setIsStorageOpen(false)} />
-      <FleetModal isOpen={isFleetOpen} onClose={() => setIsFleetOpen(false)} />
+      <FleetModal
+        isOpen={isFleetOpen}
+        onClose={() => setIsFleetOpen(false)}
+        initialTab={fleetInitialTab}
+      />
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}

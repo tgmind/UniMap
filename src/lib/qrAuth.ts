@@ -1,0 +1,194 @@
+import { getSupabaseClient } from './supabase';
+import { generateUUID } from './uuid';
+
+export interface QrLoginPayload {
+  app: 'unimap';
+  v: number;
+  type: 'qr_login';
+  sid: string;
+  createdAt: number;
+  clientInfo?: {
+    browser?: string;
+    os?: string;
+  };
+}
+
+export interface QrAuthorizedPayload {
+  access_token: string;
+  refresh_token: string;
+  deviceName?: string;
+}
+
+export interface QrScannedPayload {
+  deviceName?: string;
+}
+
+/**
+ * Generates a unique QR session ID.
+ */
+export function generateQrSessionId(): string {
+  return `qr_auth_${generateUUID().replace(/-/g, '').slice(0, 16)}_${Date.now()}`;
+}
+
+/**
+ * Creates the standardized QR code JSON string payload.
+ */
+export function createQrAuthPayload(sessionId: string, clientInfo?: { browser?: string; os?: string }): string {
+  const payload: QrLoginPayload = {
+    app: 'unimap',
+    v: 1,
+    type: 'qr_login',
+    sid: sessionId,
+    createdAt: Date.now(),
+    clientInfo,
+  };
+  return JSON.stringify(payload);
+}
+
+/**
+ * Parses and validates an incoming QR text payload.
+ */
+export function parseQrAuthPayload(text: string): QrLoginPayload | null {
+  try {
+    const data = JSON.parse(text);
+    if (data && data.app === 'unimap' && data.type === 'qr_login' && typeof data.sid === 'string') {
+      return data as QrLoginPayload;
+    }
+  } catch {
+    // Not valid JSON or not a unimap login payload
+  }
+  return null;
+}
+
+/**
+ * Laptop/Web Client: Subscribes to the broadcast channel for the unique session ID.
+ * Listens for:
+ *  - 'scanned': Mobile has detected the QR code
+ *  - 'authorized': Mobile has approved and transmitted the auth session
+ */
+export function subscribeToQrAuthSession(
+  sessionId: string,
+  callbacks: {
+    onScanned: (data: QrScannedPayload) => void;
+    onAuthorized: (data: QrAuthorizedPayload) => void;
+    onError?: (error: any) => void;
+  }
+): () => void {
+  const client = getSupabaseClient();
+  if (!client) {
+    callbacks.onError?.(new Error('Supabase client not available'));
+    return () => {};
+  }
+
+  const channelName = `qr_auth_${sessionId}`;
+  const channel = client.channel(channelName, {
+    config: {
+      broadcast: { ack: true },
+    },
+  });
+
+  channel
+    .on('broadcast', { event: 'scanned' }, (msg: { payload: QrScannedPayload }) => {
+      callbacks.onScanned(msg.payload || {});
+    })
+    .on('broadcast', { event: 'authorized' }, (msg: { payload: QrAuthorizedPayload }) => {
+      callbacks.onAuthorized(msg.payload || ({} as any));
+    })
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        callbacks.onError?.(new Error(`Failed to subscribe to QR channel ${channelName}`));
+      }
+    });
+
+  return () => {
+    try {
+      client.removeChannel(channel);
+    } catch (e) {
+      console.warn('Error removing QR channel:', e);
+    }
+  };
+}
+
+/**
+ * Mobile Client: Notifies the laptop that its QR code was scanned.
+ */
+export async function notifyQrScanned(sessionId: string, deviceName: string): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+
+  const channelName = `qr_auth_${sessionId}`;
+  const channel = client.channel(channelName, {
+    config: {
+      broadcast: { ack: true },
+    },
+  });
+
+  return new Promise((resolve) => {
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        try {
+          await channel.send({
+            type: 'broadcast',
+            event: 'scanned',
+            payload: { deviceName },
+          });
+          resolve(true);
+        } catch (err) {
+          console.warn('Failed to send QR scanned broadcast:', err);
+          resolve(false);
+        } finally {
+          client.removeChannel(channel);
+        }
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        resolve(false);
+      }
+    });
+  });
+}
+
+/**
+ * Mobile Client: Approves the login session and transmits session tokens to the laptop.
+ */
+export async function authorizeQrSession(
+  sessionId: string,
+  session: { access_token: string; refresh_token: string },
+  deviceName: string
+): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+
+  const channelName = `qr_auth_${sessionId}`;
+  const channel = client.channel(channelName, {
+    config: {
+      broadcast: { ack: true },
+    },
+  });
+
+  return new Promise((resolve) => {
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        try {
+          const res = await channel.send({
+            type: 'broadcast',
+            event: 'authorized',
+            payload: {
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+              deviceName,
+            },
+          });
+          resolve(res === 'ok');
+        } catch (err) {
+          console.error('Failed to authorize QR session:', err);
+          resolve(false);
+        } finally {
+          setTimeout(() => {
+            client.removeChannel(channel);
+          }, 1500);
+        }
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        resolve(false);
+      }
+    });
+  });
+}

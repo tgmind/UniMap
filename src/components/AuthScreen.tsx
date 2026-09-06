@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Lock,
   Mail,
@@ -13,26 +13,142 @@ import {
   Zap,
   CheckCircle2,
   AlertCircle,
-  Compass,
+  QrCode,
+  RefreshCw,
+  Loader2,
+  Sparkles,
   Moon,
   Sun,
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { UniMapLogo } from './UniMapLogo';
+import {
+  generateQrSessionId,
+  createQrAuthPayload,
+  subscribeToQrAuthSession,
+} from '../lib/qrAuth';
+import { detectBrowser, detectDeviceOS } from '../lib/deviceDetector';
 
 interface AuthScreenProps {}
 
 export const AuthScreen: React.FC<AuthScreenProps> = () => {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInWithSession } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [isSignUp, setIsSignUp] = useState(false);
+
+  // Desktop defaults to QR code login (like Telegram Web & WhatsApp Web)
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const [authMode, setAuthMode] = useState<'qr' | 'signin' | 'signup'>(
+    isDesktop ? 'qr' : 'signin'
+  );
+
+  // QR Login State
+  const [qrSessionId, setQrSessionId] = useState<string>('');
+  const [qrStatus, setQrStatus] = useState<'waiting' | 'scanned' | 'authorizing' | 'success' | 'expired'>('waiting');
+  const [scannedDeviceName, setScannedDeviceName] = useState<string>('');
+  const [countdown, setCountdown] = useState<number>(120);
+
+  // Email/Password Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Refresh QR Session
+  const refreshQrSession = useCallback(() => {
+    const newId = generateQrSessionId();
+    setQrSessionId(newId);
+    setQrStatus('waiting');
+    setScannedDeviceName('');
+    setCountdown(120);
+    setErrorMsg('');
+  }, []);
+
+  // Initialize QR on mount or when switching to 'qr' mode
+  useEffect(() => {
+    if (authMode === 'qr') {
+      refreshQrSession();
+    }
+  }, [authMode, refreshQrSession]);
+
+  // Countdown timer for QR code validity (120 seconds)
+  useEffect(() => {
+    if (authMode !== 'qr' || qrStatus === 'expired' || qrStatus === 'success') return;
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setQrStatus('expired');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [authMode, qrStatus]);
+
+  // Supabase Realtime Broadcast Listener for instant QR cross-device login
+  useEffect(() => {
+    if (authMode !== 'qr' || !qrSessionId || qrStatus === 'expired' || qrStatus === 'success') {
+      return;
+    }
+
+    const unsubscribe = subscribeToQrAuthSession(qrSessionId, {
+      onScanned: ({ deviceName }) => {
+        setQrStatus('scanned');
+        if (deviceName) setScannedDeviceName(deviceName);
+      },
+      onAuthorized: async (payload) => {
+        setQrStatus('authorizing');
+        try {
+          const res = await signInWithSession(payload.access_token, payload.refresh_token);
+          if (res.error) {
+            setErrorMsg(res.error);
+            setQrStatus('waiting');
+          } else {
+            setQrStatus('success');
+            try {
+              confetti({
+                particleCount: 70,
+                spread: 75,
+                origin: { y: 0.6 },
+              });
+            } catch (e) {
+              // Ignore confetti err if canvas unsupported
+            }
+          }
+        } catch (err: any) {
+          setErrorMsg(err.message || 'Authorization failed');
+          setQrStatus('waiting');
+        }
+      },
+      onError: (err) => {
+        console.warn('QR Realtime listener warning:', err);
+      },
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [authMode, qrSessionId, qrStatus, signInWithSession]);
+
+  const qrPayload = useMemo(() => {
+    if (!qrSessionId) return '';
+    return createQrAuthPayload(qrSessionId, {
+      browser: detectBrowser(),
+      os: detectDeviceOS(),
+    });
+  }, [qrSessionId]);
+
+  const minutes = Math.floor(countdown / 60);
+  const seconds = countdown % 60;
+  const formattedCountdown = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +157,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
     setIsSubmitting(true);
 
     try {
-      if (isSignUp) {
+      if (authMode === 'signup') {
         const res = await signUp(email, password, name);
         if (res.error) {
           setErrorMsg(res.error);
@@ -72,7 +188,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
           </span>
         </div>
 
-        {/* Theme Toggle (1-Click Dark/Light Mode) */}
+        {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
           title={theme === 'dark' ? 'Switch to Light Mode (Editorial Canvas)' : 'Switch to Dark Mode (Grey)'}
@@ -93,7 +209,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
       </header>
 
       {/* Main Grid */}
-      <main className="w-full max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-16 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center flex-1">
+      <main className="w-full max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-12 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center flex-1">
         {/* Left Hero */}
         <div className="lg:col-span-7 space-y-6">
           <div className="space-y-3">
@@ -146,13 +262,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
                 <span>Device Fleet & QR Login</span>
               </div>
               <p className="text-xs text-text-muted leading-relaxed">
-                Manage all hardware sessions and log in via 1-tap QR codes.
+                Log in via 1-tap QR codes and manage all active hardware sessions.
               </p>
             </div>
           </div>
 
           {/* Supported Hardware Bar */}
-          <div className="flex items-center gap-5 pt-3 text-xs text-text-faint">
+          <div className="flex items-center gap-5 pt-2 text-xs text-text-faint">
             <span className="flex items-center gap-1.5">
               <Laptop className="w-4 h-4" /> Windows & Linux
             </span>
@@ -165,37 +281,66 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
           </div>
         </div>
 
-        {/* Right Form */}
+        {/* Right Authentication Panel */}
         <div className="lg:col-span-5">
-          <div className="p-7 sm:p-8 rounded-2xl bg-surface border border-border shadow-card space-y-6">
+          <div className="p-6 sm:p-8 rounded-2xl bg-surface border border-border shadow-card space-y-6">
             <div>
-              <h2 className="text-lg font-bold text-text-main">
-                {isSignUp ? 'Create your Account' : 'Sign In'}
+              <h2 className="text-lg font-bold text-text-main flex items-center gap-2">
+                {authMode === 'qr' && (
+                  <>
+                    <span>Instant QR Sign-In</span>
+                    <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      Recommended
+                    </span>
+                  </>
+                )}
+                {authMode === 'signin' && 'Sign In to UniMap'}
+                {authMode === 'signup' && 'Create your Account'}
               </h2>
               <p className="text-xs text-text-muted mt-0.5">
-                {isSignUp ? 'Sign up once to access your study vault anywhere.' : 'Enter your credentials to access your map.'}
+                {authMode === 'qr' && 'Scan with your logged-in mobile app to sign in immediately.'}
+                {authMode === 'signin' && 'Enter your account credentials to access your map.'}
+                {authMode === 'signup' && 'Sign up once to access your study vault across all devices.'}
               </p>
             </div>
 
-            {/* Segmented Mode Selector */}
-            <div className="flex p-1 rounded-xl bg-surface-elevated border border-border">
+            {/* 3-Mode Modern Segmented Selector */}
+            <div className="flex p-1 rounded-xl bg-surface-elevated border border-border gap-1">
               <button
                 type="button"
-                onClick={() => { setIsSignUp(false); setErrorMsg(''); }}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  !isSignUp ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
+                onClick={() => { setAuthMode('qr'); setErrorMsg(''); setSuccessMsg(''); }}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                  authMode === 'qr'
+                    ? 'bg-surface text-text-main shadow-xs font-semibold'
+                    : 'text-text-muted hover:text-text-main'
                 }`}
               >
-                Sign In
+                <QrCode className="w-3.5 h-3.5" />
+                <span>QR Login</span>
               </button>
               <button
                 type="button"
-                onClick={() => { setIsSignUp(true); setErrorMsg(''); }}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  isSignUp ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
+                onClick={() => { setAuthMode('signin'); setErrorMsg(''); setSuccessMsg(''); }}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                  authMode === 'signin'
+                    ? 'bg-surface text-text-main shadow-xs font-semibold'
+                    : 'text-text-muted hover:text-text-main'
                 }`}
               >
-                Sign Up
+                <Mail className="w-3.5 h-3.5" />
+                <span>Password</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMode('signup'); setErrorMsg(''); setSuccessMsg(''); }}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                  authMode === 'signup'
+                    ? 'bg-surface text-text-main shadow-xs font-semibold'
+                    : 'text-text-muted hover:text-text-main'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Sign Up</span>
               </button>
             </div>
 
@@ -215,69 +360,207 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignUp && (
+            {/* MODE 1: AUTOMATIC UNIQUE QR CODE LOGIN */}
+            {authMode === 'qr' && (
+              <div className="flex flex-col items-center text-center space-y-5">
+                {/* QR Code Container with High-Res SVG & Viewfinder Corner Frames */}
+                <div className="relative inline-block p-4 sm:p-5 rounded-2xl bg-white shadow-lg border border-slate-200/90 select-none group">
+                  {/* Subtle Viewfinder Frame Accents */}
+                  <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-slate-400/80 rounded-tl-sm pointer-events-none" />
+                  <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-slate-400/80 rounded-tr-sm pointer-events-none" />
+                  <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b-2 border-l-2 border-slate-400/80 rounded-bl-sm pointer-events-none" />
+                  <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-slate-400/80 rounded-br-sm pointer-events-none" />
+
+                  {/* QR SVG */}
+                  <div className="w-[190px] h-[190px] flex items-center justify-center overflow-hidden">
+                    {qrPayload ? (
+                      <QRCodeSVG
+                        value={qrPayload}
+                        size={190}
+                        level="H"
+                        marginSize={1}
+                        imageSettings={{
+                          src: '/logo.svg',
+                          x: undefined,
+                          y: undefined,
+                          height: 38,
+                          width: 38,
+                          excavate: true,
+                        }}
+                      />
+                    ) : (
+                      <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                    )}
+                  </div>
+
+                  {/* Animated Cyan/Indigo Scanner Laser Bar */}
+                  {qrStatus === 'waiting' && (
+                    <div className="absolute inset-x-4 h-0.5 bg-gradient-to-r from-transparent via-cyan-500 to-transparent shadow-[0_0_10px_#06b6d4] top-1/2 -translate-y-1/2 animate-pulse pointer-events-none" />
+                  )}
+
+                  {/* Expired Overlay */}
+                  {qrStatus === 'expired' && (
+                    <div
+                      onClick={refreshQrSession}
+                      className="absolute inset-0 bg-slate-900/85 backdrop-blur-xs rounded-2xl flex flex-col items-center justify-center p-4 cursor-pointer text-white animate-fade-in"
+                    >
+                      <RefreshCw className="w-8 h-8 text-white mb-2" />
+                      <p className="text-xs font-semibold">QR Code Expired</p>
+                      <p className="text-[11px] text-slate-300 mt-0.5">Click to refresh</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Indicator & Live Countdown */}
+                <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-surface-elevated border border-border text-xs">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 text-left">
+                    {qrStatus === 'waiting' && (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+                        <span className="text-text-muted truncate">Waiting for phone scan...</span>
+                      </>
+                    )}
+                    {qrStatus === 'scanned' && (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-ping" />
+                        <span className="text-amber-400 font-medium truncate">
+                          Captured by {scannedDeviceName || 'mobile'}! Tap Approve on phone...
+                        </span>
+                      </>
+                    )}
+                    {qrStatus === 'authorizing' && (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-accent shrink-0" />
+                        <span className="text-accent font-medium truncate">Authorizing & opening workspace...</span>
+                      </>
+                    )}
+                    {qrStatus === 'success' && (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="text-emerald-400 font-semibold truncate">Authorized! Signing in...</span>
+                      </>
+                    )}
+                    {qrStatus === 'expired' && (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+                        <span className="text-red-400 truncate">Expired</span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Countdown Timer & Manual Refresh */}
+                  <div className="flex items-center gap-1.5 shrink-0 pl-2">
+                    <span className="font-mono text-[11px] text-text-faint">
+                      {qrStatus === 'expired' ? '00:00' : formattedCountdown}
+                    </span>
+                    <button
+                      onClick={refreshQrSession}
+                      title="Generate new QR session"
+                      className="p-1 rounded-lg text-text-faint hover:text-text-main hover:bg-surface-hover transition-colors"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3-Step Clear Visual Instructions */}
+                <div className="w-full space-y-2 pt-2 border-t border-border/60 text-left">
+                  <div className="flex items-start gap-2.5 text-xs text-text-muted">
+                    <span className="w-5 h-5 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-[10px] font-bold text-text-main shrink-0 mt-0.5">
+                      1
+                    </span>
+                    <span>
+                      Open <strong className="text-text-main">UniMap</strong> on your logged-in mobile device
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 text-xs text-text-muted">
+                    <span className="w-5 h-5 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-[10px] font-bold text-text-main shrink-0 mt-0.5">
+                      2
+                    </span>
+                    <span>
+                      Tap <strong className="text-text-main">Fleet</strong> at the bottom bar and select <strong className="text-text-main">Scan QR</strong>
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 text-xs text-text-muted">
+                    <span className="w-5 h-5 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-[10px] font-bold text-text-main shrink-0 mt-0.5">
+                      3
+                    </span>
+                    <span>
+                      Point your camera at this QR code to log in instantly without passwords
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODE 2 & 3: EMAIL / PASSWORD SIGN IN OR SIGN UP */}
+            {authMode !== 'qr' && (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {authMode === 'signup' && (
+                  <div>
+                    <label className="block text-xs font-medium text-text-main mb-1.5">
+                      Your Name
+                    </label>
+                    <div className="relative">
+                      <User className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="e.g. Alex"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-medium text-text-main mb-1.5">
-                    Your Name
+                    Email
                   </label>
                   <div className="relative">
-                    <User className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Mail className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="text"
-                      placeholder="e.g. Alex"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      type="email"
+                      placeholder="scholar@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
                       required
                     />
                   </div>
                 </div>
-              )}
 
-              <div>
-                <label className="block text-xs font-medium text-text-main mb-1.5">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    placeholder="student@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
-                    required
-                  />
+                <div>
+                  <label className="block text-xs font-medium text-text-main mb-1.5">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="password"
+                      placeholder="••••••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-text-main mb-1.5">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    placeholder="••••••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
-                    required
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-primary-text text-xs font-semibold shadow-sm transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 pt-2.5"
-              >
-                <span>{isSubmitting ? 'Processing...' : isSignUp ? 'Create Account' : 'Sign In'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-primary-text text-xs font-semibold shadow-sm transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 pt-2.5"
+                >
+                  <span>{isSubmitting ? 'Processing...' : authMode === 'signup' ? 'Create Account' : 'Sign In'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </main>

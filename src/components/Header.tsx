@@ -13,6 +13,7 @@ import {
   LogOut,
   SlidersHorizontal,
   Download,
+  QrCode,
 } from 'lucide-react';
 import { ViewMode } from '../types';
 import { useItems } from '../context/ItemContext';
@@ -26,7 +27,7 @@ interface HeaderProps {
   setViewMode: (mode: ViewMode) => void;
   onOpenAddModal: () => void;
   onOpenStorageModal: () => void;
-  onOpenFleetModal: () => void;
+  onOpenFleetModal: (tab?: 'devices' | 'qr_generate' | 'qr_scan') => void;
   onOpenAuthModal: () => void;
   onOpenConfigModal: () => void;
   isChromeVisible?: boolean;
@@ -308,7 +309,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Desktop Connected Device Fleet Button */}
           <button
-            onClick={onOpenFleetModal}
+            onClick={() => onOpenFleetModal()}
             title="Device Fleet & QR Pairing"
             className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-elevated border border-border transition-colors"
           >
@@ -377,11 +378,19 @@ export const Header: React.FC<HeaderProps> = ({
 
                 <div className="py-1">
                   <button
-                    onClick={onOpenFleetModal}
+                    onClick={() => onOpenFleetModal('devices')}
                     className="w-full text-left px-3 py-1.5 rounded-lg text-text-main hover:bg-surface-elevated flex items-center gap-2"
                   >
                     <Laptop className="w-3.5 h-3.5 text-accent" />
                     <span>Manage Devices ({devices.length})</span>
+                  </button>
+
+                  <button
+                    onClick={() => onOpenFleetModal('qr_scan')}
+                    className="w-full text-left px-3 py-1.5 rounded-lg text-text-main hover:bg-surface-elevated flex items-center gap-2"
+                  >
+                    <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Link Laptop (Scan QR)</span>
                   </button>
 
                   <button
