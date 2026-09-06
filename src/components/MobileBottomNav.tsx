@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, Clock, Compass, Laptop, Plus, HardDrive } from 'lucide-react';
+import { LayoutGrid, Clock, Compass, Laptop, Plus, HardDrive, ChevronUp, ChevronDown } from 'lucide-react';
 import { ViewMode } from '../types';
 import { useItems } from '../context/ItemContext';
 
@@ -89,6 +89,32 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     onOpenStorageModal();
   };
 
+  const touchStartYRef = React.useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartYRef.current = e.touches[0].clientY;
+    if (autoCompactTimerRef.current) {
+      clearTimeout(autoCompactTimerRef.current);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartYRef.current !== null) {
+      const deltaY = touchStartYRef.current - e.changedTouches[0].clientY;
+      if (!isExpanded && deltaY > 6) {
+        // Swiped or pulled up
+        expandNav();
+      } else if (isExpanded && deltaY < -15) {
+        // Swiped or pulled down
+        compactNav();
+      } else if (!isExpanded && Math.abs(deltaY) <= 6) {
+        // Direct tap on mobile
+        expandNav();
+      }
+      touchStartYRef.current = null;
+    }
+  };
+
   return (
     <>
       {/* Floating Action Button (FAB)
@@ -107,17 +133,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       )}
 
       {/* Modern Opaque Bottom Navigation Bar
-          - In compact state: A sleek, clickable modern thin bar with centered grab pill
+          - In compact state: A sleek, clickable modern thin bar with upward arrow indicator (tap or pull up to expand)
           - In expanded state: Full Google M3 & Meta navigation buttons, automatically compacting after inactivity */}
       <nav
         onClick={!isExpanded ? expandNav : undefined}
-        onTouchStart={() => {
-          if (!isExpanded) {
-            expandNav();
-          } else if (autoCompactTimerRef.current) {
-            clearTimeout(autoCompactTimerRef.current);
-          }
-        }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         onMouseEnter={() => {
           if (autoCompactTimerRef.current) {
             clearTimeout(autoCompactTimerRef.current);
@@ -128,17 +149,23 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             startAutoCompactTimer(3000);
           }
         }}
+        role="navigation"
+        aria-label={!isExpanded ? 'Bottom navigation, tap or pull up to expand' : 'Bottom navigation panel'}
+        aria-expanded={isExpanded}
         className={`fixed bottom-0 left-0 right-0 z-30 md:hidden bg-white dark:bg-[#18222D] border-t border-slate-200/90 dark:border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)] select-none transition-all duration-300 ease-out overflow-hidden ${
           isExpanded
             ? 'h-[74px] px-2 pt-0.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] pointer-events-auto'
-            : 'h-6.5 px-4 pt-1 pb-[env(safe-area-inset-bottom)] cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 active:bg-slate-100 dark:active:bg-slate-800/70 group'
+            : 'h-7 px-4 pt-0.5 pb-[env(safe-area-inset-bottom)] cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 active:bg-slate-100 dark:active:bg-slate-800/70 group'
         }`}
-        title={!isExpanded ? 'Tap to open navigation' : undefined}
+        title={!isExpanded ? 'Tap or pull up to open navigation' : undefined}
       >
         {!isExpanded ? (
-          /* Modern Thin Bar Handle (Thick enough to easily tap anywhere along bottom) */
-          <div className="w-full h-full flex flex-col items-center justify-center">
-            <div className="w-14 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 group-hover:w-20 group-hover:bg-[#1A73E8] dark:group-hover:bg-[#50A7EA] transition-all duration-300 shadow-2xs" />
+          /* Modern Thin Bar Handle with Small Upward Arrow Indicator */
+          <div className="w-full h-full flex flex-col items-center justify-center -mt-0.5 pointer-events-none">
+            <div className="flex flex-col items-center justify-center group-hover:scale-105 transition-transform duration-200">
+              <ChevronUp className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 group-hover:text-primary dark:group-hover:text-primary transition-colors duration-200 animate-bounce-up stroke-[2.5]" />
+              <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600 group-hover:w-16 group-hover:bg-primary transition-all duration-300 shadow-2xs -mt-0.5" />
+            </div>
           </div>
         ) : (
           /* Expanded Full Google M3 / Meta Navigation Panel */
