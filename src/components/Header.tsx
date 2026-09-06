@@ -47,17 +47,22 @@ export const Header: React.FC<HeaderProps> = ({
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
 
-  // Auto-hide on scroll: show only when user scrolls to the top to deliberately look for it
+  // Auto-hide on scroll: hide on scroll down for full immersion, reveal on scroll up or at top
   useEffect(() => {
+    let lastScrollY = window.scrollY || document.documentElement.scrollTop;
+
     const handleScroll = () => {
       const currentScrollY = window.scrollY || document.documentElement.scrollTop;
-      if (currentScrollY <= 20) {
+      if (currentScrollY <= 25) {
         setIsVisible(true);
-      } else {
+      } else if (currentScrollY > lastScrollY + 8) {
         setIsVisible(false);
         setShowUserMenu(false);
         setShowMobileSearch(false);
+      } else if (currentScrollY < lastScrollY - 12) {
+        setIsVisible(true);
       }
+      lastScrollY = currentScrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
