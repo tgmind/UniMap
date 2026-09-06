@@ -1,0 +1,26 @@
+name: Supabase Free Tier Keep-Alive
+
+on:
+  schedule:
+    # Runs every 4 days at 06:00 UTC (Supabase pauses free tier after 7 days of inactivity)
+    - cron: '0 6 */4 * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Database Endpoint
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            echo "Pinging Supabase health endpoint to keep project active..."
+            curl -s -X GET "${SUPABASE_URL}/rest/v1/" \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" > /dev/null
+            echo "Supabase successfully pinged! Project will stay awake."
+          else
+            echo "No SUPABASE_URL or SUPABASE_ANON_KEY secret configured. Ping skipped."
+          fi

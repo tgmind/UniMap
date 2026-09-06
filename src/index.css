@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Default: Midnight Obsidian OLED */
+  --bg-main: #050508;
+  --bg-surface: #0B0E17;
+  --bg-surface-elevated: #111524;
+  --bg-surface-hover: #181E33;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --primary: #8B5CF6;
+  --primary-hover: #7C3AED;
+  --primary-text: #FFFFFF;
+  --primary-glow: rgba(139, 92, 246, 0.35);
+  --accent: #06B6D4;
+  --accent-hover: #0891B2;
+  --accent-text: #FFFFFF;
+  --text-main: #F8FAFC;
+  --text-muted: #94A3B8;
+  --text-faint: #475569;
+}
+
+/* Tokyo Night / Indigo Cyber */
+[data-theme="tokyo"] {
+  --bg-main: #0F111A;
+  --bg-surface: #161926;
+  --bg-surface-elevated: #1F2437;
+  --bg-surface-hover: #293049;
+  --border-color: rgba(129, 140, 248, 0.15);
+  --border-strong: rgba(129, 140, 248, 0.28);
+  --primary: #6366F1;
+  --primary-hover: #4F46E5;
+  --primary-text: #FFFFFF;
+  --primary-glow: rgba(99, 102, 241, 0.4);
+  --accent: #A855F7;
+  --accent-hover: #9333EA;
+  --accent-text: #FFFFFF;
+  --text-main: #EEF2FF;
+  --text-muted: #A5B4FC;
+  --text-faint: #6366F1;
+}
+
+/* Paper Scholar / Warm Editorial */
+[data-theme="scholar"] {
+  --bg-main: #181614;
+  --bg-surface: #221F1B;
+  --bg-surface-elevated: #2E2A25;
+  --bg-surface-hover: #3B362F;
+  --border-color: rgba(217, 119, 6, 0.2);
+  --border-strong: rgba(217, 119, 6, 0.35);
+  --primary: #D97706;
+  --primary-hover: #B45309;
+  --primary-text: #FFFFFF;
+  --primary-glow: rgba(217, 119, 6, 0.35);
+  --accent: #EAB308;
+  --accent-hover: #CA8A04;
+  --accent-text: #181614;
+  --text-main: #FDFBF7;
+  --text-muted: #D1C7BD;
+  --text-faint: #8C827A;
+}
+
+/* Nordic Aurora / Slate Ice */
+[data-theme="aurora"] {
+  --bg-main: #070D14;
+  --bg-surface: #0C1522;
+  --bg-surface-elevated: #132135;
+  --bg-surface-hover: #1A2E49;
+  --border-color: rgba(56, 189, 248, 0.14);
+  --border-strong: rgba(56, 189, 248, 0.25);
+  --primary: #10B981;
+  --primary-hover: #059669;
+  --primary-text: #FFFFFF;
+  --primary-glow: rgba(16, 185, 129, 0.35);
+  --accent: #38BDF8;
+  --accent-hover: #0EA5E9;
+  --accent-text: #070D14;
+  --text-main: #F0FDF4;
+  --text-muted: #99F6E4;
+  --text-faint: #2DD4BF;
+}
+
+/* Retro Terminal / Neo-Brutalist Monochrome */
+[data-theme="terminal"] {
+  --bg-main: #000000;
+  --bg-surface: #0A0A0A;
+  --bg-surface-elevated: #141414;
+  --bg-surface-hover: #1F1F1F;
+  --border-color: rgba(34, 197, 94, 0.25);
+  --border-strong: rgba(34, 197, 94, 0.5);
+  --primary: #22C55E;
+  --primary-hover: #16A34A;
+  --primary-text: #000000;
+  --primary-glow: rgba(34, 197, 94, 0.35);
+  --accent: #F59E0B;
+  --accent-hover: #D97706;
+  --accent-text: #000000;
+  --text-main: #E5E5E5;
+  --text-muted: #86EFAC;
+  --text-faint: #4ADE80;
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Smooth transitions for theme switching */
+body, div, nav, header, aside, main, button, input {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.15s ease;
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(11, 14, 23, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+}
+
+.glass-dropdown {
+  background: rgba(17, 21, 36, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-strong);
+}
