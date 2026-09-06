@@ -12,6 +12,7 @@ interface AddItemInput {
   title: string;
   content: string;
   file?: File | Blob;
+  dataUrl?: string;
   fileName?: string;
   fileSize?: number;
   mimeType?: string;
@@ -86,28 +87,31 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!error && data) {
           const localExisting = await localDb.items.toArray();
           const localMap = new Map(localExisting.map((i) => [i.id, i]));
+          const cloudIds = new Set(data.map((c) => c.id));
 
-          const merged: UniItem[] = data.map((cloudItem: UniItem) => {
+          // Retain local items that haven't synced to cloud yet so they NEVER disappear on refresh!
+          const localOnly = localExisting.filter((local) => !cloudIds.has(local.id));
+
+          const mergedCloud: UniItem[] = data.map((cloudItem: UniItem) => {
             const local = localMap.get(cloudItem.id);
-            // If cloud item has no file_url or has a dead blob URL, keep the local high-res data URL
-            if (cloudItem.type === 'media' && local?.file_url && (!cloudItem.file_url || cloudItem.file_url.startsWith('blob:'))) {
-              return {
-                ...cloudItem,
-                file_url: local.file_url,
-                metadata: {
-                  ...cloudItem.metadata,
-                  sync_status: 'synced',
-                },
-              };
-            }
+            // If local item has a permanent data URL and cloud has no file_url or a dead blob URL, prioritize local
+            const effectiveFileUrl =
+              local?.file_url && (!cloudItem.file_url || cloudItem.file_url.startsWith('blob:'))
+                ? local.file_url
+                : cloudItem.file_url || local?.file_url;
+
             return {
               ...cloudItem,
+              file_url: effectiveFileUrl,
               metadata: {
                 ...cloudItem.metadata,
-                sync_status: 'synced',
+                sync_status: 'synced' as const,
               },
             };
           });
+
+          const merged: UniItem[] = [...mergedCloud, ...localOnly];
+          merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
           setItems(merged);
           await localDb.items.bulkPut(merged);
@@ -128,12 +132,30 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
         async (payload) => {
           if (payload.eventType === 'INSERT') {
             const newItem = payload.new as UniItem;
-            setItems((prev) => [newItem, ...prev.filter((i) => i.id !== newItem.id)]);
-            await localDb.items.put(newItem);
+            const local = await localDb.items.get(newItem.id);
+            const effectiveItem: UniItem = {
+              ...newItem,
+              file_url:
+                local?.file_url && (!newItem.file_url || newItem.file_url.startsWith('blob:'))
+                  ? local.file_url
+                  : newItem.file_url || local?.file_url,
+              metadata: { ...newItem.metadata, sync_status: 'synced' as const },
+            };
+            setItems((prev) => [effectiveItem, ...prev.filter((i) => i.id !== newItem.id)]);
+            await localDb.items.put(effectiveItem);
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as UniItem;
-            setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-            await localDb.items.put(updated);
+            const local = await localDb.items.get(updated.id);
+            const effectiveItem: UniItem = {
+              ...updated,
+              file_url:
+                local?.file_url && (!updated.file_url || updated.file_url.startsWith('blob:'))
+                  ? local.file_url
+                  : updated.file_url || local?.file_url,
+              metadata: { ...updated.metadata, sync_status: 'synced' as const },
+            };
+            setItems((prev) => prev.map((i) => (i.id === effectiveItem.id ? effectiveItem : i)));
+            await localDb.items.put(effectiveItem);
           } else if (payload.eventType === 'DELETE') {
             const deletedId = (payload.old as { id: string }).id;
             setItems((prev) => prev.filter((i) => i.id !== deletedId));
@@ -190,7 +212,10 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mediaMeta: any = {};
 
     // 1. Permanent Client-Side Compression & Data URL Encoding (Never expires on refresh!)
-    if (input.file) {
+    if (input.dataUrl) {
+      uploadedUrl = input.dataUrl;
+      finalFileSize = input.fileSize || Math.round((input.dataUrl.length * 3) / 4);
+    } else if (input.file) {
       if (input.file instanceof File) {
         try {
           const processed = await compressAndEncodeMedia(input.file);
@@ -305,6 +330,37 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setItems((prev) => prev.map((it) => (it.id === newItem.id ? updatedItem : it)));
         } else {
           console.warn('Supabase DB sync note:', error.message);
+          // If insert failed due to huge base64 payload, retry without cloud file_url while localDb preserves full data URL!
+          if (newItem.file_url && newItem.file_url.startsWith('data:')) {
+            const { error: retryError } = await client.from('items').insert({
+              id: newItem.id,
+              user_id: user.id,
+              device_name: newItem.device_name,
+              device_os: newItem.device_os,
+              type: newItem.type,
+              title: newItem.title,
+              content: newItem.content,
+              file_url: null,
+              file_name: newItem.file_name,
+              file_size: newItem.file_size,
+              mime_type: newItem.mime_type,
+              metadata: { ...newItem.metadata, sync_status: 'synced', has_local_media: true },
+              canvas_x: newItem.canvas_x,
+              canvas_y: newItem.canvas_y,
+              is_pinned: newItem.is_pinned,
+              created_at: newItem.created_at,
+              updated_at: newItem.updated_at,
+            });
+
+            if (!retryError) {
+              const updatedItem = {
+                ...newItem,
+                metadata: { ...newItem.metadata, sync_status: 'synced' as const },
+              };
+              await localDb.items.put(updatedItem);
+              setItems((prev) => prev.map((it) => (it.id === newItem.id ? updatedItem : it)));
+            }
+          }
         }
       } catch (err) {
         console.error('Supabase insert error:', err);

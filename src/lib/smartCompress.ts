@@ -2,6 +2,7 @@ export type CompressionPreset = 'study_doc' | 'diagram' | 'original';
 
 export interface CompressionResult {
   file: File | Blob;
+  dataUrl: string;
   originalSize: number;
   compressedSize: number;
   savingsPercentage: number;
@@ -17,13 +18,19 @@ export async function smartCompress(
   const originalSize = file.size;
 
   if (preset === 'original' || !file.type.startsWith('image/')) {
-    const previewUrl = URL.createObjectURL(file);
+    const dataUrl = await new Promise<string>((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = () => resolve('');
+      r.readAsDataURL(file);
+    });
     return {
       file,
+      dataUrl,
       originalSize,
       compressedSize: originalSize,
       savingsPercentage: 0,
-      previewUrl,
+      previewUrl: dataUrl || URL.createObjectURL(file),
       width: 0,
       height: 0,
     };
@@ -115,7 +122,13 @@ export async function smartCompress(
               0,
               Math.round(((originalSize - compressedSize) / originalSize) * 100)
             );
-            const previewUrl = URL.createObjectURL(blob);
+            let dataUrl = '';
+            try {
+              dataUrl = canvas.toDataURL(format, quality);
+            } catch {
+              // fallback if canvas.toDataURL fails
+            }
+            const previewUrl = dataUrl || URL.createObjectURL(blob);
 
             const compressedFile = new File(
               [blob],
@@ -125,6 +138,7 @@ export async function smartCompress(
 
             resolve({
               file: compressedFile,
+              dataUrl: dataUrl || previewUrl,
               originalSize,
               compressedSize,
               savingsPercentage,

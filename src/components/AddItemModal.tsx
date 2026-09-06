@@ -30,6 +30,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [compressionPreset, setCompressionPreset] = useState<CompressionPreset>('study_doc');
   const [compressedFile, setCompressedFile] = useState<File | Blob | null>(null);
+  const [compressedDataUrl, setCompressedDataUrl] = useState<string>('');
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [originalSize, setOriginalSize] = useState<number>(0);
   const [compressedSize, setCompressedSize] = useState<number>(0);
@@ -69,6 +70,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
     try {
       const result = await smartCompress(file, preset);
       setCompressedFile(result.file);
+      setCompressedDataUrl(result.dataUrl);
       setPreviewUrl(result.previewUrl);
       setOriginalSize(result.originalSize);
       setCompressedSize(result.compressedSize);
@@ -111,6 +113,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
         title: title || (finalFileName ? finalFileName : 'Study Item'),
         content: finalContent,
         file: finalFile,
+        dataUrl: compressedDataUrl || undefined,
         fileName: finalFileName,
         fileSize: compressedSize || (finalFile ? finalFile.size : new Blob([finalContent]).size),
         mimeType: selectedType === 'html' ? 'text/html' : (finalFile ? (finalFile as any).type : undefined),
@@ -121,6 +124,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
       setContent('');
       setSelectedFile(null);
       setCompressedFile(null);
+      setCompressedDataUrl('');
       setPreviewUrl('');
       onClose();
     } catch (err) {

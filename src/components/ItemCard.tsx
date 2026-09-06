@@ -82,14 +82,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
     });
   };
 
-  // Check if title is redundant (e.g. copied text where title was auto-generated from first line)
+  // Check if title is redundant (e.g. copied text where title was auto-generated from first line or filename)
   const isTitleRedundant =
     !item.title ||
     item.title === item.content ||
     item.title === 'Study Note' ||
     item.title === 'New Entry' ||
-    item.content.trim().startsWith(item.title.trim()) ||
-    (item.title.length > 20 && item.content.trim().slice(0, 40).includes(item.title.trim().slice(0, 20)));
+    item.title === 'Media Asset' ||
+    item.title === item.file_name ||
+    (item.type === 'media' && item.file_url && item.file_name && item.title.includes(item.file_name.replace(/\.[^/.]+$/, ''))) ||
+    item.content?.trim().startsWith(item.title.trim()) ||
+    (item.title.length > 20 && item.content?.trim().slice(0, 40).includes(item.title.trim().slice(0, 20)));
 
   // If text has more than 16 lines or 600 characters, offer expandable toggle
   const lineCount = item.content ? item.content.split('\n').length : 0;
@@ -264,9 +267,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
                   loading="lazy"
                   className="w-full h-auto max-h-96 object-contain group-hover/media:scale-[1.01] transition-transform duration-200"
                 />
-                <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[10px] text-white font-mono font-medium flex items-center gap-1 pointer-events-none">
+                <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-[10px] text-white font-mono font-medium flex items-center gap-1 pointer-events-none shadow-xs">
                   <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                  <span>{item.file_size ? `${(item.file_size / 1024).toFixed(0)} KB` : 'Image'}</span>
+                  <span>{item.file_size ? `${(item.file_size / 1024).toFixed(0)} KB WebP` : 'WebP Image'}</span>
                 </div>
               </div>
             ) : (
