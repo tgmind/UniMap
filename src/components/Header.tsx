@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Compass,
   LayoutGrid,
@@ -42,17 +42,47 @@ export const Header: React.FC<HeaderProps> = ({
   const { theme, toggleTheme } = useTheme();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+
+  // Auto-hide on scroll: show only when user scrolls to the top to deliberately look for it
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY || document.documentElement.scrollTop;
+      if (currentScrollY <= 20) {
+        setIsVisible(true);
+      } else {
+        setIsVisible(false);
+        setShowUserMenu(false);
+        setShowMobileSearch(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const mbUsed = (storageQuota.totalBytes / (1024 * 1024)).toFixed(1);
   const percentUsed = Math.min(100, (storageQuota.totalBytes / storageQuota.maxBytes) * 100);
 
+  const isHeaderShown = isVisible || showMobileSearch || showUserMenu;
+
   return (
-    <header className="sticky top-0 z-30 w-full border-b border-border bg-surface/90 backdrop-blur-md transition-colors">
+    <header
+      className={`sticky top-0 z-30 w-full bg-transparent border-b border-transparent transition-all duration-300 ease-out ${
+        isHeaderShown
+          ? 'translate-y-0 opacity-100 pointer-events-auto'
+          : '-translate-y-full opacity-0 pointer-events-none'
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
         {/* Left Section: Brand & View Switcher */}
         <div className="flex items-center gap-4 sm:gap-6 min-w-0">
           {/* Logo */}
-          <div className="flex items-center gap-2.5 shrink-0 cursor-pointer select-none">
+          <div
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="flex items-center gap-2.5 shrink-0 cursor-pointer select-none"
+            title="Scroll to top"
+          >
             <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-primary-text shadow-sm">
               <Compass className="w-4 h-4" />
             </div>
@@ -250,7 +280,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Expandable Search Drawer */}
       {showMobileSearch && (
-        <div className="md:hidden px-4 pb-3 pt-1 border-t border-border/50 animate-fade-in bg-surface/95">
+        <div className="md:hidden px-4 pb-3 pt-1 animate-fade-in">
           <div className="relative w-full">
             <Search className="w-4 h-4 text-text-faint absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -259,7 +289,7 @@ export const Header: React.FC<HeaderProps> = ({
               placeholder="Search notes, code, links, HTML..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-9 pr-9 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
+              className="w-full bg-surface-elevated/95 backdrop-blur-md border border-border focus:border-primary rounded-xl pl-9 pr-9 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors shadow-lg"
             />
             {searchQuery && (
               <button
