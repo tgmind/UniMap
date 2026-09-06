@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Compass,
   LayoutGrid,
@@ -47,42 +47,137 @@ export const Header: React.FC<HeaderProps> = ({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auto-hide on scroll: hide on scroll down for full immersion, reveal on scroll up or at top
+  const isHeaderActive = showMobileSearch || showUserMenu || Boolean(searchQuery.trim());
+  const isHeaderShown = isVisible || isHeaderActive;
+
+  // Helper to start/reset the auto-hide timer
+  const startAutoHideTimer = (delayMs = 3500) => {
+    if (autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current);
+    }
+    autoHideTimerRef.current = setTimeout(() => {
+      // Only hide if not currently actively interacting (e.g. search or user menu open)
+      if (!showMobileSearch && !showUserMenu && !searchQuery.trim()) {
+        setIsVisible(false);
+      }
+    }, delayMs);
+  };
+
+  // On initial page load: show header for 3.5 seconds, then gracefully auto-hide
+  useEffect(() => {
+    startAutoHideTimer(3500);
+    return () => {
+      if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+    };
+  }, []);
+
+  // Intelligent scroll & deliberate gesture listener
   useEffect(() => {
     let lastScrollY = window.scrollY || document.documentElement.scrollTop;
+    let touchStartY = 0;
 
     const handleScroll = () => {
       const currentScrollY = window.scrollY || document.documentElement.scrollTop;
-      if (currentScrollY <= 25) {
-        setIsVisible(true);
-      } else if (currentScrollY > lastScrollY + 8) {
+      const isScrollingDown = currentScrollY > lastScrollY + 6;
+      const isScrollingUp = currentScrollY < lastScrollY - 6;
+
+      if (isScrollingDown) {
+        // Scrolling down: immediately hide header for full immersion
+        if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
         setIsVisible(false);
         setShowUserMenu(false);
         setShowMobileSearch(false);
-      } else if (currentScrollY < lastScrollY - 12) {
+      } else if (isScrollingUp && currentScrollY <= 40) {
+        // Deliberately scrolling up to the top: reveal header & start auto-hide countdown
         setIsVisible(true);
+        startAutoHideTimer(4000);
+      } else if (currentScrollY <= 5 && isScrollingUp) {
+        setIsVisible(true);
+        startAutoHideTimer(4000);
       }
+
       lastScrollY = currentScrollY;
     };
 
+    // Deliberate pull-down at top of screen (mobile swipe down when already near top)
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const currentScrollY = window.scrollY || document.documentElement.scrollTop;
+      const currentY = e.touches[0].clientY;
+      const diffY = currentY - touchStartY;
+
+      if (currentScrollY <= 25 && diffY > 18) {
+        // User deliberately pulled down at top: reveal header
+        setIsVisible(true);
+        startAutoHideTimer(4000);
+      }
+    };
+
+    // Mouse wheel up at top (desktop)
+    const handleWheel = (e: WheelEvent) => {
+      const currentScrollY = window.scrollY || document.documentElement.scrollTop;
+      if (currentScrollY <= 25 && e.deltaY < -8) {
+        setIsVisible(true);
+        startAutoHideTimer(4000);
+      }
+    };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('wheel', handleWheel, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('wheel', handleWheel);
+      if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+    };
+  }, [showMobileSearch, showUserMenu, searchQuery]);
 
   const mbUsed = (storageQuota.totalBytes / (1024 * 1024)).toFixed(1);
   const percentUsed = Math.min(100, (storageQuota.totalBytes / storageQuota.maxBytes) * 100);
 
-  const isHeaderShown = isVisible || showMobileSearch || showUserMenu;
-
   return (
-    <header
-      className={`sticky top-0 z-30 w-full bg-transparent border-b border-transparent transition-all duration-300 ease-out ${
-        isHeaderShown
-          ? 'translate-y-0 opacity-100 pointer-events-auto'
-          : '-translate-y-full opacity-0 pointer-events-none'
-      }`}
-    >
+    <>
+      {/* Top Edge Peek Sensor: allows user at top of screen to tap top edge to deliberately reveal header */}
+      {!isHeaderShown && (
+        <div
+          onClick={() => {
+            setIsVisible(true);
+            startAutoHideTimer(4000);
+          }}
+          onMouseEnter={() => {
+            setIsVisible(true);
+            startAutoHideTimer(4000);
+          }}
+          className="fixed top-0 left-0 right-0 h-5 z-40 cursor-pointer pointer-events-auto"
+          title="Tap to reveal header"
+        />
+      )}
+
+      <header
+        onMouseEnter={() => {
+          if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+        }}
+        onMouseLeave={() => {
+          if (!isHeaderActive) startAutoHideTimer(3000);
+        }}
+        onTouchStart={() => {
+          if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+        }}
+        className={`fixed top-0 left-0 right-0 z-40 w-full bg-transparent border-b border-transparent transition-all duration-400 ease-in-out ${
+          isHeaderShown
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : '-translate-y-full opacity-0 pointer-events-none'
+        }`}
+      >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
         {/* Left Section: Brand & View Switcher */}
         <div className="flex items-center gap-4 sm:gap-6 min-w-0">
@@ -332,5 +427,6 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
     </header>
+    </>
   );
 };

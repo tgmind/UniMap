@@ -80,8 +80,8 @@ const MainApp: React.FC = () => {
         onOpenConfigModal={() => setIsConfigOpen(true)}
       />
 
-      {/* Main Content Area with Bottom Padding for Mobile Nav */}
-      <main className="flex-1 w-full mx-auto py-2 sm:py-4 pb-24 md:pb-8">
+      {/* Main Content Area with Top Clearance for Floating Header & Bottom Padding for Mobile Nav */}
+      <main className="flex-1 w-full mx-auto pt-14 sm:pt-16 py-2 sm:py-4 pb-24 md:pb-8">
         {viewMode === 'bento' && (
           <BentoView
             onOpenAddModal={() => setIsAddOpen(true)}
