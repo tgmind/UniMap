@@ -27,24 +27,36 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [mode, setMode] = useState<InteractionMode>('pan');
   const [isPanning, setIsPanning] = useState(false);
-  const [dragItem, setDragItem] = useState<string | null>(null);
   const [liftedCardId, setLiftedCardId] = useState<string | null>(null);
+  const [liveDragPos, setLiveDragPos] = useState<{ id: string; x: number; y: number } | null>(null);
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
   const [activeNodeIdx, setActiveNodeIdx] = useState<number>(0);
   const [showGestureHint, setShowGestureHint] = useState(true);
 
-  // Drag & pinch refs
+  // Synchronous tracking refs to eliminate stale closure & frame lag
+  const containerRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef(pan);
+  panRef.current = pan;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const liveDragPosRef = useRef(liveDragPos);
+  liveDragPosRef.current = liveDragPos;
+
+  // Active interaction tracking
+  const activeDragIdRef = useRef<string | null>(null);
+  const isPanningRef = useRef(false);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef({ x: 0, y: 0 });
   const panOriginRef = useRef({ x: 0, y: 0 });
-  const cardDragOffsetRef = useRef({ x: 0, y: 0 });
   const pinchStartDistRef = useRef<number | null>(null);
   const pinchStartZoomRef = useRef<number>(1);
 
-  // Long-press (touch and hold to lift) refs
+  // Long-press (touch-and-hold to lift) refs
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const longPressStartRef = useRef({ x: 0, y: 0 });
-
-  const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartPosRef = useRef({ x: 0, y: 0 });
+  const touchCurrentPosRef = useRef({ x: 0, y: 0 });
 
   // Auto-hide gesture hint after 4.5 seconds
   useEffect(() => {
@@ -71,8 +83,10 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
 
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     items.forEach((item, idx) => {
-      const x = item.canvas_x ?? (Math.cos((idx * 2 * Math.PI) / items.length) * 340);
-      const y = item.canvas_y ?? (Math.sin((idx * 2 * Math.PI) / items.length) * 240);
+      const defaultX = Math.cos((idx * 2 * Math.PI) / Math.max(1, items.length)) * 340;
+      const defaultY = Math.sin((idx * 2 * Math.PI) / Math.max(1, items.length)) * 240;
+      const x = item.canvas_x ?? Math.round(defaultX);
+      const y = item.canvas_y ?? Math.round(defaultY);
       minX = Math.min(minX, x - nodeW / 2);
       maxX = Math.max(maxX, x + nodeW / 2);
       minY = Math.min(minY, y - nodeH / 2);
@@ -102,8 +116,10 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
     const newIdx = (index + items.length) % items.length;
     setActiveNodeIdx(newIdx);
     const target = items[newIdx];
-    const x = target.canvas_x ?? (Math.cos((newIdx * 2 * Math.PI) / items.length) * 340);
-    const y = target.canvas_y ?? (Math.sin((newIdx * 2 * Math.PI) / items.length) * 240);
+    const defaultX = Math.cos((newIdx * 2 * Math.PI) / Math.max(1, items.length)) * 340;
+    const defaultY = Math.sin((newIdx * 2 * Math.PI) / Math.max(1, items.length)) * 240;
+    const x = target.canvas_x ?? Math.round(defaultX);
+    const y = target.canvas_y ?? Math.round(defaultY);
 
     setPan({
       x: Math.round(-x * zoom),
@@ -113,13 +129,78 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
     setTimeout(() => setHighlightedNodeId(null), 2500);
   }, [items, zoom]);
 
-  // Helper to convert screen clientX/Y to canvas coords
+  // Exact screen clientX/Y to canvas (x, y) mapping
   const getCanvasCoords = (clientX: number, clientY: number) => {
     if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
-    const cx = (clientX - rect.left - pan.x - rect.width / 2) / zoom;
-    const cy = (clientY - rect.top - pan.y - rect.height / 2) / zoom;
+    const currentPan = panRef.current;
+    const currentZoom = zoomRef.current;
+    const cx = (clientX - (rect.left + rect.width / 2) - currentPan.x) / currentZoom;
+    const cy = (clientY - (rect.top + rect.height / 2) - currentPan.y) / currentZoom;
     return { x: cx, y: cy };
+  };
+
+  // Immediate card lift & drag trigger
+  const triggerCardDrag = (cardId: string, clientX: number, clientY: number) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    isPanningRef.current = false;
+    setIsPanning(false);
+    activeDragIdRef.current = cardId;
+    setLiftedCardId(cardId);
+
+    const currentItems = itemsRef.current;
+    const item = currentItems.find((i) => i.id === cardId);
+    if (!item) return;
+    const idx = currentItems.indexOf(item);
+    const defaultX = Math.cos((idx * 2 * Math.PI) / Math.max(1, currentItems.length)) * 340;
+    const defaultY = Math.sin((idx * 2 * Math.PI) / Math.max(1, currentItems.length)) * 240;
+    const posX = item.canvas_x ?? Math.round(defaultX);
+    const posY = item.canvas_y ?? Math.round(defaultY);
+
+    const fingerCanvas = getCanvasCoords(clientX, clientY);
+    dragOffsetRef.current = {
+      x: fingerCanvas.x - posX,
+      y: fingerCanvas.y - posY,
+    };
+    const initialPos = { id: cardId, x: posX, y: posY };
+    setLiveDragPos(initialPos);
+    liveDragPosRef.current = initialPos;
+
+    if ('vibrate' in navigator) {
+      try {
+        navigator.vibrate([40]);
+      } catch {}
+    }
+  };
+
+  // Drag End & Save to storage / cloud
+  const handleDragEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    const draggedId = activeDragIdRef.current;
+    if (draggedId && liveDragPosRef.current && liveDragPosRef.current.id === draggedId) {
+      const { x: finalX, y: finalY } = liveDragPosRef.current;
+      updateCanvasPosition(draggedId, finalX, finalY);
+      if ('vibrate' in navigator) {
+        try {
+          navigator.vibrate([20]);
+        } catch {}
+      }
+    }
+
+    activeDragIdRef.current = null;
+    setLiftedCardId(null);
+    setLiveDragPos(null);
+    liveDragPosRef.current = null;
+    isPanningRef.current = false;
+    setIsPanning(false);
+    pinchStartDistRef.current = null;
   };
 
   // --- MOUSE HANDLERS (Desktop) ---
@@ -129,48 +210,40 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
     const cardEl = targetEl.closest('[data-card-id]');
 
     if (handleEl || (mode === 'move' && cardEl)) {
-      const itemId = (handleEl?.getAttribute('data-item-id') || cardEl?.getAttribute('data-card-id'));
+      const itemId = handleEl?.getAttribute('data-item-id') || cardEl?.getAttribute('data-card-id');
       if (itemId) {
         e.stopPropagation();
-        const item = items.find((i) => i.id === itemId);
-        if (item) {
-          const coords = getCanvasCoords(e.clientX, e.clientY);
-          cardDragOffsetRef.current = {
-            x: coords.x - (item.canvas_x || 0),
-            y: coords.y - (item.canvas_y || 0),
-          };
-          setDragItem(itemId);
-          setLiftedCardId(itemId);
-          return;
-        }
+        triggerCardDrag(itemId, e.clientX, e.clientY);
+        return;
       }
     }
 
+    isPanningRef.current = true;
     setIsPanning(true);
     panStartRef.current = { x: e.clientX, y: e.clientY };
-    panOriginRef.current = { ...pan };
+    panOriginRef.current = { ...panRef.current };
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
+    if (activeDragIdRef.current) {
+      const fingerCanvas = getCanvasCoords(e.clientX, e.clientY);
+      const newX = Math.round(fingerCanvas.x - dragOffsetRef.current.x);
+      const newY = Math.round(fingerCanvas.y - dragOffsetRef.current.y);
+      const nextPos = { id: activeDragIdRef.current, x: newX, y: newY };
+      setLiveDragPos(nextPos);
+      liveDragPosRef.current = nextPos;
+    } else if (isPanningRef.current) {
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
       setPan({
-        x: panOriginRef.current.x + dx,
-        y: panOriginRef.current.y + dy,
+        x: Math.round(panOriginRef.current.x + dx),
+        y: Math.round(panOriginRef.current.y + dy),
       });
-    } else if (dragItem) {
-      const coords = getCanvasCoords(e.clientX, e.clientY);
-      const newX = Math.round(coords.x - cardDragOffsetRef.current.x);
-      const newY = Math.round(coords.y - cardDragOffsetRef.current.y);
-      updateCanvasPosition(dragItem, newX, newY);
     }
   };
 
   const handleMouseUp = () => {
-    setIsPanning(false);
-    setDragItem(null);
-    setLiftedCardId(null);
+    handleDragEnd();
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -182,18 +255,17 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
   // --- TOUCH HANDLERS (Mobile / Tablet Gestures) ---
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
-      // 2-finger pinch starts
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
         longPressTimerRef.current = null;
       }
       const t1 = e.touches[0];
       const t2 = e.touches[1];
-      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      pinchStartDistRef.current = dist;
-      pinchStartZoomRef.current = zoom;
+      pinchStartDistRef.current = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      pinchStartZoomRef.current = zoomRef.current;
+      isPanningRef.current = false;
       setIsPanning(false);
-      setDragItem(null);
+      activeDragIdRef.current = null;
       setLiftedCardId(null);
       return;
     }
@@ -204,65 +276,45 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
       const cardEl = targetEl.closest('[data-card-id]');
       const handleEl = targetEl.closest('.drag-handle');
 
-      // Immediate move if in 'move' mode and touching drag handle
-      if (mode === 'move' && handleEl) {
-        const itemId = handleEl.getAttribute('data-item-id');
+      touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+      touchCurrentPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+      // Direct drag if touching handle or in 'move' mode
+      if (handleEl || (mode === 'move' && cardEl)) {
+        const itemId = handleEl?.getAttribute('data-item-id') || cardEl?.getAttribute('data-card-id');
         if (itemId) {
-          const item = items.find((i) => i.id === itemId);
-          if (item) {
-            const coords = getCanvasCoords(touch.clientX, touch.clientY);
-            cardDragOffsetRef.current = {
-              x: coords.x - (item.canvas_x || 0),
-              y: coords.y - (item.canvas_y || 0),
-            };
-            setDragItem(itemId);
-            setLiftedCardId(itemId);
-            return;
-          }
+          e.stopPropagation();
+          triggerCardDrag(itemId, touch.clientX, touch.clientY);
+          return;
         }
       }
 
-      // Setup Touch & Hold (Long-press) on card to lift and drag!
+      // If touching card in 'pan' mode, start 280ms touch-and-hold to lift
       if (cardEl) {
         const cardId = cardEl.getAttribute('data-card-id');
         if (cardId) {
-          longPressStartRef.current = { x: touch.clientX, y: touch.clientY };
           longPressTimerRef.current = setTimeout(() => {
-            // Long-press triggered! Lift card!
-            setLiftedCardId(cardId);
-            setDragItem(cardId);
-            setIsPanning(false);
-            const coords = getCanvasCoords(touch.clientX, touch.clientY);
-            const item = items.find((i) => i.id === cardId);
-            if (item) {
-              cardDragOffsetRef.current = {
-                x: coords.x - (item.canvas_x || 0),
-                y: coords.y - (item.canvas_y || 0),
-              };
-            }
-            if ('vibrate' in navigator) {
-              try {
-                navigator.vibrate([35]);
-              } catch {}
-            }
-          }, 320);
+            triggerCardDrag(cardId, touchCurrentPosRef.current.x, touchCurrentPosRef.current.y);
+          }, 280);
+          return;
         }
       }
 
-      // Default: Prepare for 1-finger canvas pan
+      // Blank canvas touch: immediate pan
+      isPanningRef.current = true;
       setIsPanning(true);
       panStartRef.current = { x: touch.clientX, y: touch.clientY };
-      panOriginRef.current = { ...pan };
+      panOriginRef.current = { ...panRef.current };
     }
   };
 
-  // Native non-passive touchmove listener to avoid "Unable to preventDefault inside passive event listener"
+  // Native non-passive touchmove listener to avoid passive event warnings
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const onNativeTouchMove = (e: TouchEvent) => {
-      // 2-finger Pinch-to-zoom
+      // 2-finger pinch
       if (e.touches.length === 2 && pinchStartDistRef.current) {
         if (e.cancelable) e.preventDefault();
         const t1 = e.touches[0];
@@ -274,38 +326,44 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
         return;
       }
 
-      // 1-finger touch
       if (e.touches.length === 1) {
         const touch = e.touches[0];
+        touchCurrentPosRef.current = { x: touch.clientX, y: touch.clientY };
 
-        // If user moved more than 8px before 320ms, cancel long press
-        if (longPressTimerRef.current) {
-          const dx = Math.abs(touch.clientX - longPressStartRef.current.x);
-          const dy = Math.abs(touch.clientY - longPressStartRef.current.y);
-          if (dx > 8 || dy > 8) {
-            clearTimeout(longPressTimerRef.current);
-            longPressTimerRef.current = null;
-          }
-        }
-
-        // Dragging a lifted or selected card
-        if (dragItem) {
+        // Case A: Card is actively dragging (1:1 lockstep tracking without delay)
+        if (activeDragIdRef.current) {
           if (e.cancelable) e.preventDefault();
-          const coords = getCanvasCoords(touch.clientX, touch.clientY);
-          const newX = Math.round(coords.x - cardDragOffsetRef.current.x);
-          const newY = Math.round(coords.y - cardDragOffsetRef.current.y);
-          updateCanvasPosition(dragItem, newX, newY);
+          const fingerCanvas = getCanvasCoords(touch.clientX, touch.clientY);
+          const newX = Math.round(fingerCanvas.x - dragOffsetRef.current.x);
+          const newY = Math.round(fingerCanvas.y - dragOffsetRef.current.y);
+          const nextPos = { id: activeDragIdRef.current, x: newX, y: newY };
+          setLiveDragPos(nextPos);
+          liveDragPosRef.current = nextPos;
           return;
         }
 
-        // Panning the infinite canvas
-        if (isPanning) {
+        // Case B: User touched card, but swiped > 10px before long-press -> switch to pan
+        if (longPressTimerRef.current) {
+          const dx = touch.clientX - touchStartPosRef.current.x;
+          const dy = touch.clientY - touchStartPosRef.current.y;
+          if (Math.hypot(dx, dy) > 10) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+            isPanningRef.current = true;
+            setIsPanning(true);
+            panStartRef.current = { x: touch.clientX, y: touch.clientY };
+            panOriginRef.current = { ...panRef.current };
+          }
+        }
+
+        // Case C: Canvas is panning
+        if (isPanningRef.current) {
           if (e.cancelable) e.preventDefault();
           const dx = touch.clientX - panStartRef.current.x;
           const dy = touch.clientY - panStartRef.current.y;
           setPan({
-            x: panOriginRef.current.x + dx,
-            y: panOriginRef.current.y + dy,
+            x: Math.round(panOriginRef.current.x + dx),
+            y: Math.round(panOriginRef.current.y + dy),
           });
         }
       }
@@ -315,34 +373,10 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
     return () => {
       container.removeEventListener('touchmove', onNativeTouchMove);
     };
-  }, [isPanning, dragItem, zoom, pan, items]);
+  }, []);
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    // Clear long-press timer if touch ended early
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-
-    if (e.touches.length === 0) {
-      if (liftedCardId) {
-        if ('vibrate' in navigator) {
-          try {
-            navigator.vibrate([15]);
-          } catch {}
-        }
-      }
-      setIsPanning(false);
-      setDragItem(null);
-      setLiftedCardId(null);
-      pinchStartDistRef.current = null;
-    } else if (e.touches.length === 1) {
-      pinchStartDistRef.current = null;
-      const touch = e.touches[0];
-      setIsPanning(true);
-      panStartRef.current = { x: touch.clientX, y: touch.clientY };
-      panOriginRef.current = { ...pan };
-    }
+  const handleTouchEnd = () => {
+    handleDragEnd();
   };
 
   return (
@@ -496,7 +530,7 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: 'center center',
-            transition: isPanning ? 'none' : 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+            transition: isPanning || activeDragIdRef.current ? 'none' : 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           <div className="relative w-full h-full flex items-center justify-center">
@@ -507,8 +541,15 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
 
             {/* Nodes */}
             {items.map((item, idx) => {
-              const x = item.canvas_x ?? (Math.cos((idx * 2 * Math.PI) / items.length) * 340);
-              const y = item.canvas_y ?? (Math.sin((idx * 2 * Math.PI) / items.length) * 240);
+              const defaultX = Math.cos((idx * 2 * Math.PI) / Math.max(1, items.length)) * 340;
+              const defaultY = Math.sin((idx * 2 * Math.PI) / Math.max(1, items.length)) * 240;
+              const posX = item.canvas_x ?? Math.round(defaultX);
+              const posY = item.canvas_y ?? Math.round(defaultY);
+
+              const isBeingDragged = activeDragIdRef.current === item.id;
+              const x = (liveDragPos && liveDragPos.id === item.id) ? liveDragPos.x : posX;
+              const y = (liveDragPos && liveDragPos.id === item.id) ? liveDragPos.y : posY;
+
               const isHighlighted = highlightedNodeId === item.id;
               const isLifted = liftedCardId === item.id;
 
@@ -516,16 +557,18 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
                 <div
                   key={item.id}
                   data-card-id={item.id}
-                  className={`absolute pointer-events-auto transition-all duration-200 ${
+                  className={`absolute pointer-events-auto rounded-2xl select-none ${
                     isLifted
-                      ? 'scale-[1.07] -translate-y-4 shadow-2xl ring-4 ring-primary rounded-2xl z-50 cursor-grabbing'
+                      ? 'shadow-2xl ring-4 ring-[#2481CC] z-50 cursor-grabbing'
                       : isHighlighted
-                      ? 'ring-4 ring-primary rounded-2xl shadow-glow-lg z-30 scale-[1.02]'
+                      ? 'ring-4 ring-[#2481CC] shadow-glow-lg z-30'
                       : 'z-10'
                   }`}
                   style={{
-                    transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
+                    transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${isLifted ? 1.05 : 1})`,
+                    transition: isBeingDragged || isLifted ? 'none' : 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease',
                     width: 'clamp(260px, 80vw, 320px)',
+                    touchAction: 'none',
                   }}
                 >
                   {/* Floating Lift Aura Pill when card is lifted */}
