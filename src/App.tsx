@@ -25,6 +25,9 @@ const MainApp: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
 
+  // Mobile bottom navigation compact/expanded state
+  const [isBottomNavExpanded, setIsBottomNavExpanded] = useState(false);
+
   // Synchronized intelligent auto-hide for top header & mobile bottom navigation
   const [isChromeVisible, setIsChromeVisible] = useState(true);
   const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -49,7 +52,7 @@ const MainApp: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Reveal chrome initially for 3.5s then auto-hide
+    // Reveal header initially for 3.5s then auto-hide
     wakeChrome(3500);
 
     let lastScrollY = window.scrollY || document.documentElement.scrollTop;
@@ -64,16 +67,17 @@ const MainApp: React.FC = () => {
       const isScrollingUp = currentScrollY < lastScrollY - 8;
 
       if (isScrollingDown) {
-        // Hides both top header and bottom nav for full immersive viewing
+        // Hides top header and compacts bottom nav for full immersive viewing
         hideChrome();
+        setIsBottomNavExpanded(false);
       } else if (isScrollingUp) {
-        // Deliberate scroll up: reveal chrome
+        // Deliberate scroll up: reveal header
         wakeChrome(3500);
       } else if (currentScrollY <= 20) {
-        // At top of page: reveal chrome
+        // At top of page: reveal header
         wakeChrome(4000);
       } else if (currentScrollY + windowHeight >= documentHeight - 30) {
-        // At bottom of page: reveal chrome
+        // At bottom of page: reveal header
         wakeChrome(4000);
       }
 
@@ -100,6 +104,7 @@ const MainApp: React.FC = () => {
         wakeChrome(3500);
       } else if (e.deltaY > 12) {
         hideChrome();
+        setIsBottomNavExpanded(false);
       }
     };
 
@@ -176,12 +181,12 @@ const MainApp: React.FC = () => {
       />
 
       {/* Main Content Area with Top Clearance for Floating Header & Bottom Padding for Mobile Nav */}
-      <main className="flex-1 w-full mx-auto pt-14 sm:pt-16 py-2 sm:py-4 pb-24 md:pb-8">
+      <main className="flex-1 w-full mx-auto pt-14 sm:pt-16 py-2 sm:py-4 pb-20 md:pb-8">
         {viewMode === 'bento' && (
           <BentoView
             onOpenAddModal={() => setIsAddOpen(true)}
             onOpenMedia={(url, title) => setLightboxData({ url, title })}
-            isNavVisible={isChromeVisible}
+            isNavVisible={isBottomNavExpanded}
           />
         )}
         {viewMode === 'timeline' && (
@@ -203,8 +208,8 @@ const MainApp: React.FC = () => {
         onOpenAddModal={() => setIsAddOpen(true)}
         onOpenFleetModal={() => setIsFleetOpen(true)}
         onOpenStorageModal={() => setIsStorageOpen(true)}
-        isVisible={isChromeVisible}
-        onWake={() => wakeChrome(4000)}
+        isExpanded={isBottomNavExpanded}
+        onExpandChange={setIsBottomNavExpanded}
       />
 
       {/* Modals */}
