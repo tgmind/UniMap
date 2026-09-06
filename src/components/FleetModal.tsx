@@ -20,6 +20,7 @@ import {
   Video,
   KeyRound,
   Sparkles,
+  Copy,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -31,6 +32,9 @@ import {
   notifyQrScanned,
   authorizeQrSession,
   authorizeWithPairCode,
+  generateUniquePairingKey,
+  listenForPairingKeyClaims,
+  normalizePairingKey,
 } from '../lib/qrAuth';
 import { getSupabaseClient } from '../lib/supabase';
 import { generateDefaultDeviceName } from '../lib/deviceDetector';
@@ -51,6 +55,12 @@ export const FleetModal: React.FC<FleetModalProps> = ({
   const [editingName, setEditingName] = useState('');
   const [activeTab, setActiveTab] = useState<'devices' | 'qr_generate' | 'qr_scan'>(initialTab);
   const [qrToken, setQrToken] = useState<string>('');
+
+  // Pairing Key Generation & Broadcast States
+  const [pairingKey, setPairingKey] = useState<string>('');
+  const [pairingCountdown, setPairingCountdown] = useState<number>(300);
+  const [copiedKey, setCopiedKey] = useState<boolean>(false);
+  const [remoteDeviceClaimed, setRemoteDeviceClaimed] = useState<string | null>(null);
 
   // Native camera file input ref
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -304,6 +314,87 @@ export const FleetModal: React.FC<FleetModalProps> = ({
     }
   };
 
+  // Generate a new Pairing Key
+  const handleRegeneratePairingKey = () => {
+    const newKey = generateUniquePairingKey();
+    setPairingKey(newKey);
+    setPairingCountdown(300);
+    setRemoteDeviceClaimed(null);
+  };
+
+  const handleCopyPairingKey = async () => {
+    if (!pairingKey) return;
+    try {
+      await navigator.clipboard.writeText(pairingKey);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2000);
+    } catch (e) {
+      console.warn('Clipboard write error:', e);
+    }
+  };
+
+  // Countdown for pairing key (5 min)
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'qr_generate' || !pairingKey || remoteDeviceClaimed) return;
+
+    const timer = setInterval(() => {
+      setPairingCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, activeTab, pairingKey, remoteDeviceClaimed]);
+
+  // Realtime Broadcast Listener for Pairing Key Claims
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'qr_generate' || !pairingKey || pairingCountdown <= 0 || remoteDeviceClaimed) {
+      return;
+    }
+
+    let unsubscribe: (() => void) | undefined;
+
+    const setupListener = async () => {
+      const client = getSupabaseClient();
+      if (!client) return;
+
+      const { data: { session } } = await client.auth.getSession();
+      if (!session) return;
+
+      const devName = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
+
+      unsubscribe = listenForPairingKeyClaims(
+        pairingKey,
+        {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        },
+        devName,
+        async (remoteName) => {
+          setRemoteDeviceClaimed(remoteName);
+          await refreshDevices();
+        }
+      );
+    };
+
+    setupListener();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [isOpen, activeTab, pairingKey, pairingCountdown, remoteDeviceClaimed, refreshDevices]);
+
+  // Automatically generate key on tab open if empty
+  useEffect(() => {
+    if (isOpen && activeTab === 'qr_generate' && !pairingKey) {
+      handleRegeneratePairingKey();
+    }
+  }, [isOpen, activeTab, pairingKey]);
+
   // Lifecycle when modal opens or closes
   useEffect(() => {
     if (isOpen) {
@@ -314,6 +405,10 @@ export const FleetModal: React.FC<FleetModalProps> = ({
       setAuthSuccess(false);
       setScanError(null);
       setManualCode('');
+      setRemoteDeviceClaimed(null);
+      if (initialTab === 'qr_generate') {
+        handleRegeneratePairingKey();
+      }
     } else {
       stopCameraScanner();
     }
@@ -390,33 +485,33 @@ export const FleetModal: React.FC<FleetModalProps> = ({
           </button>
         </div>
 
-        {/* Minimal Tab Switcher */}
-        <div className="flex p-1 rounded-xl bg-surface-elevated border border-border">
+        {/* Modern 3-Tab Responsive Switcher */}
+        <div className="grid grid-cols-3 p-1 rounded-xl bg-surface-elevated border border-border gap-1">
           <button
             onClick={() => setActiveTab('devices')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              activeTab === 'devices' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
+            className={`py-2 px-1 rounded-lg text-xs font-medium transition-all ${
+              activeTab === 'devices' ? 'bg-surface text-text-main shadow-xs font-semibold' : 'text-text-muted hover:text-text-main'
             }`}
           >
             Devices ({devices.length})
           </button>
           <button
             onClick={() => setActiveTab('qr_scan')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'qr_scan' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
+            className={`py-2 px-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'qr_scan' ? 'bg-surface text-text-main shadow-xs font-semibold' : 'text-text-muted hover:text-text-main'
             }`}
           >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Link Laptop / Scan QR</span>
+            <Camera className="w-3.5 h-3.5 shrink-0 text-accent" />
+            <span className="truncate">Scan QR</span>
           </button>
           <button
             onClick={() => setActiveTab('qr_generate')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'qr_generate' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
+            className={`py-2 px-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'qr_generate' ? 'bg-surface text-text-main shadow-xs font-semibold' : 'text-text-muted hover:text-text-main'
             }`}
           >
-            <QrCode className="w-3.5 h-3.5" />
-            <span>Show QR</span>
+            <KeyRound className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+            <span className="truncate">Pairing Key</span>
           </button>
         </div>
 
@@ -425,26 +520,35 @@ export const FleetModal: React.FC<FleetModalProps> = ({
           {/* TAB 1: DEVICES LIST */}
           {activeTab === 'devices' && (
             <div className="space-y-3">
-              {/* Quick Action Banner: Link Laptop / Desktop */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-r from-accent/15 via-primary/10 to-transparent border border-accent/25 flex items-center justify-between gap-3">
+              {/* Quick Action Banner: Link Another Device (Scan QR or Generate Key) */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-accent/15 via-primary/10 to-transparent border border-accent/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 rounded-xl bg-accent/20 flex items-center justify-center text-accent shrink-0">
                     <Laptop className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-text-main">Log in to Laptop / Desktop</p>
+                    <p className="text-xs font-semibold text-text-main">Connect Another Screen</p>
                     <p className="text-[11px] text-text-muted truncate">
-                      Scan the QR code on your computer screen to sign in instantly
+                      Point camera at computer QR or generate a pairing key
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setActiveTab('qr_scan')}
-                  className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent/90 text-white text-xs font-semibold shrink-0 shadow-xs active:scale-95 transition-all flex items-center gap-1.5"
-                >
-                  <Camera className="w-3 h-3" />
-                  <span>Scan QR</span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                  <button
+                    onClick={() => setActiveTab('qr_scan')}
+                    className="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg bg-accent hover:bg-accent/90 text-white text-xs font-semibold shadow-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Camera className="w-3 h-3" />
+                    <span>Scan QR</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('qr_generate')}
+                    className="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <KeyRound className="w-3 h-3" />
+                    <span>Pairing Key</span>
+                  </button>
+                </div>
               </div>
 
               {/* Devices Card List */}
@@ -755,17 +859,164 @@ export const FleetModal: React.FC<FleetModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: SHOW PAIRING QR CODE */}
+          {/* TAB 3: UNIQUE PAIRING KEY GENERATION & BROADCAST */}
           {activeTab === 'qr_generate' && (
-            <div className="p-6 rounded-xl bg-surface-elevated/50 border border-border text-center space-y-4">
-              <div>
-                <p className="text-xs font-semibold text-text-main">Pairing QR Code</p>
-                <p className="text-[11px] text-text-muted mt-0.5">Scan from another mobile device to pair hardware sessions.</p>
-              </div>
+            <div className="space-y-4 animate-fade-in">
+              {/* State A: Remote Device Claimed Successfully */}
+              {remoteDeviceClaimed ? (
+                <div className="p-6 sm:p-8 rounded-2xl bg-surface-elevated/70 border border-emerald-500/30 text-center space-y-4 animate-scale-up">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-sm">
+                    <CheckCircle2 className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-text-main">Device Linked Successfully!</h3>
+                    <p className="text-xs text-emerald-400 font-medium mt-0.5">
+                      {remoteDeviceClaimed} has connected to your UniMap vault
+                    </p>
+                    <p className="text-[11px] text-text-muted mt-2 max-w-xs mx-auto">
+                      All your lecture notes, equations, and canvas cards are now synced in real-time.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <button
+                      onClick={handleRegeneratePairingKey}
+                      className="px-4 py-2 rounded-xl bg-surface hover:bg-surface-hover border border-border text-xs font-semibold text-text-main transition-colors flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Link Another Device</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('devices')}
+                      className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5"
+                    >
+                      <Laptop className="w-3.5 h-3.5" />
+                      <span>View Devices</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* State B: Active Pairing Key Card with Realtime Listener */
+                <div className="space-y-4">
+                  <div className="p-4 sm:p-6 rounded-2xl bg-surface-elevated/60 border border-border text-center space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-text-main">
+                        <KeyRound className="w-4 h-4 text-amber-500" />
+                        <span>Unique Pairing Key</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                          pairingCountdown <= 30
+                            ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                            : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                        }`}>
+                          {pairingCountdown <= 0 ? 'Expired' : `${Math.floor(pairingCountdown / 60)}:${String(pairingCountdown % 60).padStart(2, '0')}`}
+                        </span>
+                      </div>
+                    </div>
 
-              <div className="inline-block p-3 rounded-xl bg-white shadow-sm border border-slate-200">
-                <QRCodeSVG value={qrToken} size={180} level="H" includeMargin />
-              </div>
+                    <p className="text-xs text-text-muted text-left sm:text-center">
+                      Enter this key on your other device's sign-in screen to authenticate instantly without typing passwords.
+                    </p>
+
+                    {/* Key Display Card with Copy & Regenerate Buttons */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-surface border-2 border-amber-500/30 shadow-inner flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="font-mono text-2xl sm:text-3xl font-black tracking-widest text-text-main select-all py-1">
+                        {pairingKey || 'GENERATING...'}
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                          onClick={handleCopyPairingKey}
+                          className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                          title="Copy pairing key"
+                        >
+                          {copiedKey ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy Key</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          onClick={handleRegeneratePairingKey}
+                          className="p-2 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border text-text-muted hover:text-text-main transition-colors"
+                          title="Generate a new key"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Realtime Broadcast Status */}
+                    <div className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-surface border border-border text-xs">
+                      {pairingCountdown > 0 ? (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                          <span className="text-text-muted text-[11px] truncate">
+                            Listening for connections... Enter key on other screen
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+                          <span className="text-red-400 text-[11px]">
+                            Key expired. Click refresh above to generate a new key.
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* QR Code Alternative for quick scanning */}
+                    <div className="pt-2 border-t border-border/60 flex flex-col items-center">
+                      <p className="text-[11px] text-text-muted mb-2.5">
+                        Or scan directly from another mobile camera:
+                      </p>
+                      <div className="p-3 rounded-2xl bg-white shadow-sm border border-slate-200 inline-block">
+                        <QRCodeSVG
+                          value={JSON.stringify({ type: 'unimap_pair_key', key: pairingKey })}
+                          size={140}
+                          level="H"
+                          marginSize={1}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 3-Step Guide */}
+                    <div className="w-full space-y-2 pt-2 border-t border-border/60 text-left">
+                      <div className="flex items-start gap-2.5 text-xs text-text-muted">
+                        <span className="w-5 h-5 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-[10px] font-bold text-text-main shrink-0 mt-0.5">
+                          1
+                        </span>
+                        <span>
+                          Open <strong className="text-text-main">UniMap</strong> on the computer or phone you want to sign in to.
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2.5 text-xs text-text-muted">
+                        <span className="w-5 h-5 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-[10px] font-bold text-text-main shrink-0 mt-0.5">
+                          2
+                        </span>
+                        <span>
+                          Click the <strong className="text-text-main">Pairing Key</strong> tab on the sign-in screen.
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2.5 text-xs text-text-muted">
+                        <span className="w-5 h-5 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-[10px] font-bold text-text-main shrink-0 mt-0.5">
+                          3
+                        </span>
+                        <span>
+                          Enter <strong className="text-amber-500 font-mono">{pairingKey}</strong> and tap <strong className="text-text-main">Connect & Sign In</strong>.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

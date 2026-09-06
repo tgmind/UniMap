@@ -12,6 +12,10 @@ import {
   Pin,
   ChevronDown,
   ChevronUp,
+  Cloud,
+  Loader2,
+  HardDrive,
+  CheckCircle2,
 } from 'lucide-react';
 import { UniItem } from '../types';
 import { downloadItem, runHtmlInBrowser } from '../lib/downloadHelper';
@@ -247,24 +251,36 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
         )}
 
         {/* 4. Media Asset */}
-        {item.type === 'media' && (
+        {(item.type === 'media' || (item.file_url && item.type !== 'html')) && (
           <div className="space-y-2">
             {item.file_url ? (
               <div
                 onClick={() => onOpenMedia?.(item.file_url!, item.title)}
-                className="rounded-xl overflow-hidden bg-black/10 border border-border/50 cursor-pointer group/media max-h-80 flex items-center justify-center relative"
+                className="rounded-xl overflow-hidden bg-black/5 dark:bg-black/20 border border-border/50 cursor-pointer group/media max-h-96 flex items-center justify-center relative shadow-2xs"
               >
                 <img
                   src={item.file_url}
                   alt={item.title}
-                  className="w-full h-auto max-h-80 object-contain group-hover/media:scale-[1.01] transition-transform duration-200"
+                  loading="lazy"
+                  className="w-full h-auto max-h-96 object-contain group-hover/media:scale-[1.01] transition-transform duration-200"
                 />
+                <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[10px] text-white font-mono font-medium flex items-center gap-1 pointer-events-none">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span>{item.file_size ? `${(item.file_size / 1024).toFixed(0)} KB` : 'Image'}</span>
+                </div>
               </div>
             ) : (
               <div className="p-3 rounded-xl bg-surface-elevated text-xs text-text-muted flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-[#2481CC] shrink-0" />
                 <span className="truncate">{item.file_name || 'Attached Media'}</span>
               </div>
+            )}
+
+            {/* Media Caption Text */}
+            {item.content && item.content !== item.file_name && item.content !== item.title && item.type === 'media' && (
+              <p className="text-[13px] sm:text-[14px] text-text-main leading-relaxed text-break-word whitespace-pre-wrap pt-0.5 select-text">
+                {renderContentWithLinks(item.content)}
+              </p>
             )}
           </div>
         )}
@@ -289,7 +305,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
         )}
       </div>
 
-      {/* Bottom Action & Time Strip */}
+      {/* Bottom Action & Time Strip with Upload Status Indicator */}
       <div className="mt-2.5 pt-2 border-t border-border/20 flex items-center justify-between text-xs">
         {/* 1-Tap Copy Action Button */}
         <button
@@ -310,10 +326,31 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
           )}
         </button>
 
-        {/* Timestamp */}
-        <span className="text-[11px] text-text-faint font-mono select-none">
-          {formatTime(item.created_at)}
-        </span>
+        {/* Upload / Sync Status Indicator & Timestamp */}
+        <div className="flex items-center gap-2">
+          {item.metadata?.sync_status === 'uploading' && (
+            <span className="text-amber-500 font-medium flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20" title="Saving media asset...">
+              <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+              <span>Saving...</span>
+            </span>
+          )}
+          {item.metadata?.sync_status === 'synced' && (
+            <span className="text-emerald-500 font-medium flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20" title="Cloud Synced">
+              <Cloud className="w-3 h-3 text-emerald-500 shrink-0" />
+              <span>Synced</span>
+            </span>
+          )}
+          {(item.metadata?.sync_status === 'local_only' || !item.metadata?.sync_status) && (
+            <span className="text-primary font-medium flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 border border-primary/20" title="Stored on Device">
+              <HardDrive className="w-3 h-3 text-primary shrink-0" />
+              <span>Saved</span>
+            </span>
+          )}
+
+          <span className="text-[11px] text-text-faint font-mono select-none">
+            {formatTime(item.created_at)}
+          </span>
+        </div>
       </div>
     </article>
   );

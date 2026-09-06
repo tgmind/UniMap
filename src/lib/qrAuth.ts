@@ -272,3 +272,134 @@ export async function authorizeWithPairCode(
     });
   });
 }
+
+/**
+ * Generates a unique, human-friendly pairing key (e.g. UNI-749201).
+ */
+export function generateUniquePairingKey(): string {
+  const digits = Math.floor(100000 + Math.random() * 900000);
+  return `UNI-${digits}`;
+}
+
+/**
+ * Normalizes user-typed pairing keys (e.g. '849201', 'uni-849201', 'UNI 849201' -> 'UNI-849201').
+ */
+export function normalizePairingKey(input: string): string {
+  const stripped = input.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (stripped.startsWith('UNI')) {
+    return `UNI-${stripped.slice(3)}`;
+  }
+  if (/^\d{6}$/.test(stripped)) {
+    return `UNI-${stripped}`;
+  }
+  return stripped;
+}
+
+/**
+ * Logged-In Device: Listens for another device requesting to connect using this pairing key.
+ * When a request arrives, automatically broadcasts authorization credentials to link the new device.
+ */
+export function listenForPairingKeyClaims(
+  pairingKey: string,
+  session: { access_token: string; refresh_token: string },
+  deviceName: string,
+  onClaimed?: (remoteDeviceName: string) => void
+): () => void {
+  const client = getSupabaseClient();
+  if (!client) return () => {};
+
+  const cleanKey = normalizePairingKey(pairingKey);
+  const channelName = `unimap_link_${cleanKey}`;
+  const channel = client.channel(channelName, {
+    config: { broadcast: { ack: true } },
+  });
+
+  channel
+    .on('broadcast', { event: 'request_auth' }, async ({ payload }) => {
+      try {
+        await channel.send({
+          type: 'broadcast',
+          event: 'authorized',
+          payload: {
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+            deviceName,
+          },
+        });
+        onClaimed?.(payload?.deviceName || 'New Device');
+      } catch (err) {
+        console.error('Failed to respond to pairing key request:', err);
+      }
+    })
+    .subscribe();
+
+  return () => {
+    try {
+      client.removeChannel(channel);
+    } catch (e) {
+      console.warn('Error removing pairing key channel:', e);
+    }
+  };
+}
+
+/**
+ * New/Unauthenticated Device: Connects using a generated pairing key, sends request_auth,
+ * and awaits session tokens from the logged-in device.
+ */
+export async function claimPairingKey(
+  pairingKey: string,
+  deviceName: string,
+  callbacks: {
+    onAuthorized: (data: QrAuthorizedPayload) => void;
+    onError: (error: Error) => void;
+  }
+): Promise<() => void> {
+  const client = getSupabaseClient();
+  if (!client) {
+    callbacks.onError(new Error('Backend client unavailable'));
+    return () => {};
+  }
+
+  const cleanKey = normalizePairingKey(pairingKey);
+  const channelName = `unimap_link_${cleanKey}`;
+  const channel = client.channel(channelName, {
+    config: { broadcast: { ack: true } },
+  });
+
+  let hasAuthorized = false;
+
+  channel
+    .on('broadcast', { event: 'authorized' }, ({ payload }) => {
+      hasAuthorized = true;
+      callbacks.onAuthorized(payload);
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        try {
+          await channel.send({
+            type: 'broadcast',
+            event: 'request_auth',
+            payload: { deviceName },
+          });
+
+          // Timeout check if no response after 15 seconds
+          setTimeout(() => {
+            if (!hasAuthorized) {
+              callbacks.onError(new Error('No response from logged-in device. Please ensure the pairing key is still active on your other device.'));
+            }
+          }, 15000);
+        } catch (err: any) {
+          callbacks.onError(err);
+        }
+      } else if (status === 'CHANNEL_ERROR') {
+        callbacks.onError(new Error('Connection error. Please try again.'));
+      }
+    });
+
+  return () => {
+    try {
+      client.removeChannel(channel);
+    } catch (e) {}
+  };
+}
+

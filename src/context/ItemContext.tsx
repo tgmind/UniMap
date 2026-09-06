@@ -5,6 +5,7 @@ import { localDb } from '../lib/db';
 import { useAuth } from './AuthContext';
 import { detectDeviceOS, generateDefaultDeviceName } from '../lib/deviceDetector';
 import { generateUUID } from '../lib/uuid';
+import { compressAndEncodeMedia } from '../lib/mediaStorage';
 
 interface AddItemInput {
   type: ItemType;
@@ -83,9 +84,33 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          setItems(data);
-          await localDb.items.clear();
-          await localDb.items.bulkPut(data);
+          const localExisting = await localDb.items.toArray();
+          const localMap = new Map(localExisting.map((i) => [i.id, i]));
+
+          const merged: UniItem[] = data.map((cloudItem: UniItem) => {
+            const local = localMap.get(cloudItem.id);
+            // If cloud item has no file_url or has a dead blob URL, keep the local high-res data URL
+            if (cloudItem.type === 'media' && local?.file_url && (!cloudItem.file_url || cloudItem.file_url.startsWith('blob:'))) {
+              return {
+                ...cloudItem,
+                file_url: local.file_url,
+                metadata: {
+                  ...cloudItem.metadata,
+                  sync_status: 'synced',
+                },
+              };
+            }
+            return {
+              ...cloudItem,
+              metadata: {
+                ...cloudItem.metadata,
+                sync_status: 'synced',
+              },
+            };
+          });
+
+          setItems(merged);
+          await localDb.items.bulkPut(merged);
         }
       } catch (err) {
         console.error('Failed to sync online items:', err);
@@ -160,12 +185,43 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const itemId = generateUUID();
 
     let uploadedUrl = '';
-    let finalFileSize = input.fileSize || (input.file ? input.file.size : new Blob([input.content]).size);
+    let finalFileSize = input.fileSize || 0;
+    let syncStatus: 'uploading' | 'synced' | 'local_only' = 'local_only';
+    let mediaMeta: any = {};
 
-    // If there's a file and Supabase is configured, upload to storage bucket 'user-media'
+    // 1. Permanent Client-Side Compression & Data URL Encoding (Never expires on refresh!)
+    if (input.file) {
+      if (input.file instanceof File) {
+        try {
+          const processed = await compressAndEncodeMedia(input.file);
+          uploadedUrl = processed.dataUrl;
+          finalFileSize = processed.sizeBytes;
+          mediaMeta = {
+            width: processed.width,
+            height: processed.height,
+          };
+        } catch (e) {
+          console.warn('Image compression fallback:', e);
+        }
+      }
+
+      if (!uploadedUrl) {
+        // Fallback for raw Blob
+        uploadedUrl = await new Promise((resolve) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result as string);
+          r.onerror = () => resolve('');
+          r.readAsDataURL(input.file as Blob);
+        });
+      }
+    } else {
+      finalFileSize = new Blob([input.content]).size;
+    }
+
+    // 2. Attempt Supabase Storage upload if bucket configured
     if (input.file && client && user) {
       try {
-        const ext = input.fileName ? input.fileName.split('.').pop() : (input.type === 'html' ? 'html' : 'webp');
+        const ext = input.fileName ? input.fileName.split('.').pop() : (input.type === 'html' ? 'html' : 'jpg');
         const storagePath = `${user.id}/${itemId}.${ext}`;
 
         const { data: uploadData, error: uploadErr } = await client.storage
@@ -179,17 +235,14 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const { data: publicUrlData } = client.storage
             .from('user-media')
             .getPublicUrl(storagePath);
-          uploadedUrl = publicUrlData.publicUrl;
-        } else {
-          console.warn('Storage upload error, using local fallback:', uploadErr);
-          uploadedUrl = URL.createObjectURL(input.file);
+          if (publicUrlData?.publicUrl) {
+            uploadedUrl = publicUrlData.publicUrl;
+            syncStatus = 'synced';
+          }
         }
       } catch (err) {
-        console.error('File upload exception:', err);
-        uploadedUrl = URL.createObjectURL(input.file);
+        console.warn('Storage upload skipped, keeping high-res permanent Data URL:', err);
       }
-    } else if (input.file) {
-      uploadedUrl = URL.createObjectURL(input.file);
     }
 
     const newItem: UniItem = {
@@ -206,6 +259,8 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mime_type: input.mimeType,
       metadata: {
         tags: input.tags || ['Study'],
+        sync_status: syncStatus,
+        ...mediaMeta,
       },
       canvas_x: input.canvasX ?? (Math.random() * 400 - 200),
       canvas_y: input.canvasY ?? (Math.random() * 300 - 150),
@@ -214,11 +269,11 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updated_at: new Date().toISOString(),
     };
 
-    // 0ms Optimistic Local Update
+    // 0ms Optimistic Local Update (Safely saved to IndexedDB)
     setItems((prev) => [newItem, ...prev]);
     await localDb.items.put(newItem);
 
-    // Sync to Supabase Online if connected
+    // Sync to Supabase Online database if connected
     if (client && user) {
       try {
         const { error } = await client.from('items').insert({
@@ -233,15 +288,23 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           file_name: newItem.file_name,
           file_size: newItem.file_size,
           mime_type: newItem.mime_type,
-          metadata: newItem.metadata,
+          metadata: { ...newItem.metadata, sync_status: 'synced' },
           canvas_x: newItem.canvas_x,
           canvas_y: newItem.canvas_y,
           is_pinned: newItem.is_pinned,
           created_at: newItem.created_at,
           updated_at: newItem.updated_at,
         });
-        if (error) {
-          console.warn('Online sync failed, stored locally:', error.message);
+
+        if (!error) {
+          const updatedItem = {
+            ...newItem,
+            metadata: { ...newItem.metadata, sync_status: 'synced' as const },
+          };
+          await localDb.items.put(updatedItem);
+          setItems((prev) => prev.map((it) => (it.id === newItem.id ? updatedItem : it)));
+        } else {
+          console.warn('Supabase DB sync note:', error.message);
         }
       } catch (err) {
         console.error('Supabase insert error:', err);

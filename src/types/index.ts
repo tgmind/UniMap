@@ -31,6 +31,7 @@ export interface UniItem {
     width?: number;
     height?: number;
     color?: string;
+    sync_status?: 'uploading' | 'synced' | 'local_only';
   };
   canvas_x: number;
   canvas_y: number;

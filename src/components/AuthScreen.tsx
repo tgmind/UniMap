@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
   QrCode,
+  KeyRound,
   RefreshCw,
   Loader2,
   Sparkles,
@@ -30,8 +31,10 @@ import {
   generatePairingCode,
   createQrAuthPayload,
   subscribeToQrAuthSession,
+  claimPairingKey,
+  normalizePairingKey,
 } from '../lib/qrAuth';
-import { detectBrowser, detectDeviceOS } from '../lib/deviceDetector';
+import { detectBrowser, detectDeviceOS, generateDefaultDeviceName } from '../lib/deviceDetector';
 
 interface AuthScreenProps {}
 
@@ -41,7 +44,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
 
   // Desktop defaults to QR code login (like Telegram Web & WhatsApp Web)
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
-  const [authMode, setAuthMode] = useState<'qr' | 'signin' | 'signup'>(
+  const [authMode, setAuthMode] = useState<'qr' | 'pairing' | 'signin' | 'signup'>(
     isDesktop ? 'qr' : 'signin'
   );
 
@@ -51,6 +54,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
   const [scannedDeviceName, setScannedDeviceName] = useState<string>('');
   const [countdown, setCountdown] = useState<number>(120);
   const [pairingCode, setPairingCode] = useState<string>('');
+
+  // Pairing Key Login State
+  const [pairingKeyInput, setPairingKeyInput] = useState<string>('');
+  const [isClaimingPairing, setIsClaimingPairing] = useState<boolean>(false);
 
   // Email/Password Form State
   const [email, setEmail] = useState('');
@@ -181,6 +188,54 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
     }
   };
 
+  const handleClaimPairingKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalized = normalizePairingKey(pairingKeyInput);
+    if (!normalized || normalized.length < 6) {
+      setErrorMsg('Please enter a valid pairing key (e.g. UNI-849201 or 6-digit code).');
+      return;
+    }
+
+    setErrorMsg('');
+    setSuccessMsg('');
+    setIsClaimingPairing(true);
+
+    const devName = generateDefaultDeviceName();
+
+    try {
+      await claimPairingKey(normalized, devName, {
+        onAuthorized: async (payload) => {
+          try {
+            const res = await signInWithSession(payload.access_token, payload.refresh_token);
+            if (res.error) {
+              setErrorMsg(res.error);
+              setIsClaimingPairing(false);
+            } else {
+              setSuccessMsg('Authenticated! Opening study vault...');
+              try {
+                confetti({
+                  particleCount: 70,
+                  spread: 75,
+                  origin: { y: 0.6 },
+                });
+              } catch (e) {}
+            }
+          } catch (err: any) {
+            setErrorMsg(err.message || 'Authorization failed');
+            setIsClaimingPairing(false);
+          }
+        },
+        onError: (err) => {
+          setErrorMsg(err.message || 'Could not connect with pairing key. Ensure the other device is still showing the key.');
+          setIsClaimingPairing(false);
+        },
+      });
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to claim pairing key');
+      setIsClaimingPairing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-text-main flex flex-col justify-between selection:bg-primary selection:text-white">
       {/* Top Header */}
@@ -298,53 +353,74 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
                     </span>
                   </>
                 )}
+                {authMode === 'pairing' && (
+                  <>
+                    <span>Unique Pairing Key</span>
+                    <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                      Cross-Device
+                    </span>
+                  </>
+                )}
                 {authMode === 'signin' && 'Sign In to UniMap'}
                 {authMode === 'signup' && 'Create your Account'}
               </h2>
               <p className="text-xs text-text-muted mt-0.5">
                 {authMode === 'qr' && 'Scan with your logged-in mobile app to sign in immediately.'}
+                {authMode === 'pairing' && 'Enter the unique pairing key from your logged-in device to connect instantly.'}
                 {authMode === 'signin' && 'Enter your account credentials to access your map.'}
                 {authMode === 'signup' && 'Sign up once to access your study vault across all devices.'}
               </p>
             </div>
 
-            {/* 3-Mode Modern Segmented Selector */}
-            <div className="flex p-1 rounded-xl bg-surface-elevated border border-border gap-1">
+            {/* 4-Mode Modern Responsive Segmented Selector */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 p-1 rounded-xl bg-surface-elevated border border-border gap-1">
               <button
                 type="button"
                 onClick={() => { setAuthMode('qr'); setErrorMsg(''); setSuccessMsg(''); }}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                className={`py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
                   authMode === 'qr'
                     ? 'bg-surface text-text-main shadow-xs font-semibold'
                     : 'text-text-muted hover:text-text-main'
                 }`}
               >
-                <QrCode className="w-3.5 h-3.5" />
-                <span>QR Login</span>
+                <QrCode className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                <span className="truncate">QR Login</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMode('pairing'); setErrorMsg(''); setSuccessMsg(''); }}
+                className={`py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                  authMode === 'pairing'
+                    ? 'bg-surface text-text-main shadow-xs font-semibold'
+                    : 'text-text-muted hover:text-text-main'
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                <span className="truncate">Pairing Key</span>
               </button>
               <button
                 type="button"
                 onClick={() => { setAuthMode('signin'); setErrorMsg(''); setSuccessMsg(''); }}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                className={`py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
                   authMode === 'signin'
                     ? 'bg-surface text-text-main shadow-xs font-semibold'
                     : 'text-text-muted hover:text-text-main'
                 }`}
               >
-                <Mail className="w-3.5 h-3.5" />
-                <span>Password</span>
+                <Mail className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Password</span>
               </button>
               <button
                 type="button"
                 onClick={() => { setAuthMode('signup'); setErrorMsg(''); setSuccessMsg(''); }}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                className={`py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
                   authMode === 'signup'
                     ? 'bg-surface text-text-main shadow-xs font-semibold'
                     : 'text-text-muted hover:text-text-main'
                 }`}
               >
-                <User className="w-3.5 h-3.5" />
-                <span>Sign Up</span>
+                <User className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Sign Up</span>
               </button>
             </div>
 
@@ -368,7 +444,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
             {authMode === 'qr' && (
               <div className="flex flex-col items-center text-center space-y-5">
                 {/* QR Code Container with High-Res SVG & Viewfinder Corner Frames */}
-                <div className="relative inline-block p-4 sm:p-5 rounded-2xl bg-white shadow-lg border border-slate-200/90 select-none group">
+                <div className="relative inline-block p-4 sm:p-5 rounded-2xl bg-white shadow-lg border border-slate-200/90 select-none group max-w-full">
                   {/* Subtle Viewfinder Frame Accents */}
                   <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-slate-400/80 rounded-tl-sm pointer-events-none" />
                   <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-slate-400/80 rounded-tr-sm pointer-events-none" />
@@ -376,19 +452,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
                   <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-slate-400/80 rounded-br-sm pointer-events-none" />
 
                   {/* QR SVG */}
-                  <div className="w-[190px] h-[190px] flex items-center justify-center overflow-hidden">
+                  <div className="w-[160px] h-[160px] sm:w-[190px] sm:h-[190px] flex items-center justify-center overflow-hidden">
                     {qrPayload ? (
                       <QRCodeSVG
                         value={qrPayload}
-                        size={190}
+                        size={175}
                         level="H"
                         marginSize={1}
+                        className="w-full h-full max-w-full max-h-full"
                         imageSettings={{
                           src: '/logo.svg',
                           x: undefined,
                           y: undefined,
-                          height: 38,
-                          width: 38,
+                          height: 36,
+                          width: 36,
                           excavate: true,
                         }}
                       />
@@ -470,11 +547,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
                 {/* Quick 6-Digit Pairing Code Display */}
                 {pairingCode && (
                   <div className="w-full p-2.5 rounded-xl bg-surface-elevated/80 border border-border/80 flex items-center justify-between gap-2 text-xs">
-                    <div className="text-left">
+                    <div className="text-left min-w-0 flex-1">
                       <p className="text-[11px] font-medium text-text-main">Pairing Code</p>
-                      <p className="text-[10px] text-text-muted">Enter on phone if camera unavailable</p>
+                      <p className="text-[10px] text-text-muted truncate">Enter on phone if camera unavailable</p>
                     </div>
-                    <div className="flex items-center gap-1.5 font-mono text-sm tracking-widest font-bold px-3 py-1 rounded-lg bg-surface border border-border text-text-main shadow-2xs">
+                    <div className="flex items-center gap-1.5 font-mono text-sm tracking-widest font-bold px-3 py-1 rounded-lg bg-surface border border-border text-text-main shadow-2xs shrink-0">
                       <span>{pairingCode.slice(0, 3)}</span>
                       <span className="text-text-faint">-</span>
                       <span>{pairingCode.slice(3, 6)}</span>
@@ -514,8 +591,90 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
               </div>
             )}
 
-            {/* MODE 2 & 3: EMAIL / PASSWORD SIGN IN OR SIGN UP */}
-            {authMode !== 'qr' && (
+            {/* MODE 2: UNIQUE PAIRING KEY SIGN-IN */}
+            {authMode === 'pairing' && (
+              <form onSubmit={handleClaimPairingKey} className="space-y-4 animate-fade-in">
+                <div className="p-4 sm:p-5 rounded-2xl bg-surface-elevated/60 border border-border space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold text-text-main">
+                      <KeyRound className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>Enter Device Pairing Key</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                      Cross-Device
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    Open <strong className="text-text-main">Fleet &rarr; Pairing Key</strong> on your already logged-in phone or computer, and enter the unique key generated there.
+                  </p>
+
+                  <div className="relative pt-1">
+                    <input
+                      type="text"
+                      placeholder="UNI-849201"
+                      value={pairingKeyInput}
+                      onChange={(e) => setPairingKeyInput(e.target.value.toUpperCase())}
+                      className="w-full bg-surface border-2 border-border focus:border-amber-500 rounded-xl px-4 py-3 text-center text-lg sm:text-xl font-mono font-bold tracking-widest text-text-main placeholder:text-text-faint placeholder:font-normal placeholder:tracking-normal focus:outline-none transition-all shadow-inner"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isClaimingPairing || !pairingKeyInput.trim()}
+                  className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs sm:text-sm font-semibold shadow-md shadow-amber-500/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+                >
+                  {isClaimingPairing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                      <span>Connecting with your device...</span>
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4 shrink-0" />
+                      <span>Connect & Sign In</span>
+                      <ArrowRight className="w-4 h-4 shrink-0" />
+                    </>
+                  )}
+                </button>
+
+                {/* 3-Step Clear Visual Instructions */}
+                <div className="w-full space-y-2.5 pt-3 border-t border-border/60 text-left">
+                  <div className="flex items-start gap-2.5 text-xs text-text-muted">
+                    <span className="w-5 h-5 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-[10px] font-bold text-text-main shrink-0 mt-0.5">
+                      1
+                    </span>
+                    <span>
+                      Open <strong className="text-text-main">UniMap</strong> on any device where your account is currently signed in.
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 text-xs text-text-muted">
+                    <span className="w-5 h-5 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-[10px] font-bold text-text-main shrink-0 mt-0.5">
+                      2
+                    </span>
+                    <span>
+                      Tap <strong className="text-text-main">Fleet</strong> at the bottom bar and click <strong className="text-text-main">Pairing Key</strong>.
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 text-xs text-text-muted">
+                    <span className="w-5 h-5 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-[10px] font-bold text-text-main shrink-0 mt-0.5">
+                      3
+                    </span>
+                    <span>
+                      Enter the key above and click <strong className="text-text-main">Connect & Sign In</strong>. Your session links instantly.
+                    </span>
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* MODE 3 & 4: EMAIL / PASSWORD SIGN IN OR SIGN UP */}
+            {(authMode === 'signin' || authMode === 'signup') && (
               <form onSubmit={handleSubmit} className="space-y-4">
                 {authMode === 'signup' && (
                   <div>
