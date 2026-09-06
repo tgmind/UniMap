@@ -454,11 +454,11 @@ export const FleetModal: React.FC<FleetModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl bg-surface border border-border rounded-2xl p-6 shadow-xl overflow-hidden max-h-[90vh] flex flex-col space-y-4"
+        className="w-full max-w-xl bg-surface border border-border rounded-2xl p-4 sm:p-6 shadow-xl overflow-hidden max-h-[92vh] flex flex-col space-y-3 sm:space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Hidden Native Camera Input for 100% mobile compatibility */}
@@ -472,7 +472,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
         />
 
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-border/60">
+        <div className="flex items-center justify-between pb-2.5 border-b border-border/60">
           <div>
             <h2 className="text-base font-semibold text-text-main">Connected Devices</h2>
             <p className="text-xs text-text-muted mt-0.5">Manage hardware sessions across your computers and mobile devices</p>
@@ -489,15 +489,16 @@ export const FleetModal: React.FC<FleetModalProps> = ({
         <div className="grid grid-cols-3 p-1 rounded-xl bg-surface-elevated border border-border gap-1">
           <button
             onClick={() => setActiveTab('devices')}
-            className={`py-2 px-1 rounded-lg text-xs font-medium transition-all ${
+            className={`py-1.5 sm:py-2 px-1 rounded-lg text-[11px] sm:text-xs font-medium transition-all ${
               activeTab === 'devices' ? 'bg-surface text-text-main shadow-xs font-semibold' : 'text-text-muted hover:text-text-main'
             }`}
           >
-            Devices ({devices.length})
+            <span>Devices</span>
+            <span className="opacity-70 ml-1">({devices.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('qr_scan')}
-            className={`py-2 px-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+            className={`py-1.5 sm:py-2 px-1 rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1 sm:gap-1.5 transition-all ${
               activeTab === 'qr_scan' ? 'bg-surface text-text-main shadow-xs font-semibold' : 'text-text-muted hover:text-text-main'
             }`}
           >
@@ -506,12 +507,12 @@ export const FleetModal: React.FC<FleetModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('qr_generate')}
-            className={`py-2 px-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+            className={`py-1.5 sm:py-2 px-1 rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1 sm:gap-1.5 transition-all ${
               activeTab === 'qr_generate' ? 'bg-surface text-text-main shadow-xs font-semibold' : 'text-text-muted hover:text-text-main'
             }`}
           >
             <KeyRound className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-            <span className="truncate">Pairing Key</span>
+            <span className="truncate">Pair Key</span>
           </button>
         </div>
 
@@ -697,14 +698,14 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                   </p>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center gap-3 pt-2">
+                  <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 pt-2">
                     <button
                       onClick={() => {
                         setScannedSession(null);
                         setScanError(null);
                       }}
                       disabled={isAuthorizing}
-                      className="flex-1 py-2.5 rounded-xl bg-surface-hover hover:bg-surface-elevated border border-border text-xs font-semibold text-text-muted transition-all"
+                      className="w-full sm:flex-1 py-2.5 rounded-xl bg-surface-hover hover:bg-surface-elevated border border-border text-xs font-semibold text-text-muted transition-all"
                     >
                       Cancel
                     </button>
@@ -712,7 +713,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                     <button
                       onClick={handleAuthorizeLogin}
                       disabled={isAuthorizing}
-                      className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                      className="w-full sm:flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 active:scale-95"
                     >
                       {isAuthorizing ? (
                         <>
@@ -823,7 +824,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                       Type the 6-digit pairing code shown right beneath the QR code on your computer screen.
                     </p>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
                       <input
                         type="text"
                         inputMode="numeric"
@@ -832,13 +833,13 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                         placeholder="e.g. 849201"
                         value={manualCode}
                         onChange={(e) => setManualCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        className="flex-1 bg-surface border border-border focus:border-primary rounded-xl px-3 py-2 text-center text-sm font-mono tracking-widest font-bold text-text-main placeholder-text-faint focus:outline-none transition-colors"
+                        className="w-full sm:flex-1 bg-surface border border-border focus:border-primary rounded-xl px-3 py-2.5 sm:py-2 text-center text-base sm:text-sm font-mono tracking-widest font-bold text-text-main placeholder-text-faint focus:outline-none transition-colors shadow-2xs"
                       />
 
                       <button
                         onClick={handleAuthorizeWithCode}
                         disabled={manualCode.replace(/\D/g, '').length !== 6 || isSubmittingCode}
-                        className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
+                        className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shrink-0"
                       >
                         {isSubmittingCode ? (
                           <>
@@ -847,7 +848,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                           </>
                         ) : (
                           <>
-                            <Check className="w-3.5 h-3.5" />
+                            <Check className="w-4 h-4" />
                             <span>Authorize Laptop</span>
                           </>
                         )}
