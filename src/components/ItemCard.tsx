@@ -13,11 +13,8 @@ import {
   Pin,
   ChevronDown,
   ChevronUp,
-  Laptop,
-  Smartphone,
-  Terminal,
 } from 'lucide-react';
-import { DeviceOS, ItemType, UniItem } from '../types';
+import { ItemType, UniItem } from '../types';
 import { downloadItem, runHtmlInBrowser } from '../lib/downloadHelper';
 import { useItems } from '../context/ItemContext';
 
@@ -26,66 +23,10 @@ interface ItemCardProps {
   onOpenMedia?: (url: string, title: string) => void;
 }
 
-const TYPE_CONFIG: Record<
-  ItemType,
-  {
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    pillClass: string;
-    dotColor: string;
-  }
-> = {
-  text: {
-    label: 'Note',
-    icon: FileText,
-    pillClass: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
-    dotColor: 'bg-amber-500',
-  },
-  link: {
-    label: 'Link',
-    icon: Link2,
-    pillClass: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
-    dotColor: 'bg-emerald-500',
-  },
-  code: {
-    label: 'Code',
-    icon: Code,
-    pillClass: 'text-violet-500 bg-violet-500/10 border-violet-500/20',
-    dotColor: 'bg-violet-500',
-  },
-  media: {
-    label: 'Media',
-    icon: ImageIcon,
-    pillClass: 'text-rose-500 bg-rose-500/10 border-rose-500/20',
-    dotColor: 'bg-rose-500',
-  },
-  html: {
-    label: 'HTML App',
-    icon: Globe,
-    pillClass: 'text-sky-500 bg-sky-500/10 border-sky-500/20',
-    dotColor: 'bg-sky-500',
-  },
-};
-
 export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
   const { deleteItem, togglePin } = useItems();
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-
-  const typeConfig = TYPE_CONFIG[item.type] || TYPE_CONFIG.text;
-  const TypeIcon = typeConfig.icon;
-
-  const getDeviceIcon = (os: DeviceOS) => {
-    switch (os) {
-      case 'android':
-      case 'ios':
-        return <Smartphone className="w-3 h-3 opacity-70" />;
-      case 'linux':
-        return <Terminal className="w-3 h-3 opacity-70" />;
-      default:
-        return <Laptop className="w-3 h-3 opacity-70" />;
-    }
-  };
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -104,21 +45,18 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
     runHtmlInBrowser(item.content, item.title);
   };
 
-  const formatDate = (iso: string) => {
+  const formatTime = (iso: string) => {
     const d = new Date(iso);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMins = Math.round(diffMs / 60000);
-    if (diffMins < 60) return `${Math.max(1, diffMins)}m ago`;
-    const diffHours = Math.round(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const isLongContent = item.content && item.content.length > 280;
+  // Find all URLs inside the content to generate Telegram-style links and rich preview cards
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+  const detectedUrls = item.content ? item.content.match(urlRegex) || [] : [];
+  const firstUrl = detectedUrls[0];
 
+  // Render text with Telegram clean blue links without ugly [↗] icons breaking the sentence flow
   const renderContentWithLinks = (text: string) => {
-    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
     const parts = text.split(urlRegex);
 
     return parts.map((part, index) => {
@@ -131,10 +69,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="text-blue-500 dark:text-blue-400 hover:underline font-medium break-all inline-flex items-baseline gap-0.5 transition-colors"
+            className="text-[#2481CC] dark:text-[#50A7EA] hover:underline font-medium break-all transition-colors"
           >
-            <span>{part}</span>
-            <ExternalLink className="w-2.5 h-2.5 inline shrink-0 opacity-70" />
+            {part}
           </a>
         );
       }
@@ -142,108 +79,142 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
     });
   };
 
+  // Check if title is redundant (e.g. copied text where title was auto-generated from first line)
+  const isTitleRedundant =
+    !item.title ||
+    item.title === item.content ||
+    item.title === 'Study Note' ||
+    item.title === 'New Entry' ||
+    item.content.trim().startsWith(item.title.trim());
+
+  const isLongContent = item.content && item.content.length > 320;
+
+  // Extract domain name for Telegram preview card
+  const getDomain = (urlStr: string) => {
+    try {
+      const u = new URL(urlStr.startsWith('http') ? urlStr : `https://${urlStr}`);
+      return u.hostname.replace('www.', '');
+    } catch {
+      return 'Web Link';
+    }
+  };
+
   return (
     <article
-      className={`subtle-card rounded-2xl flex flex-col justify-between overflow-hidden relative group transition-all duration-200 ${
-        item.is_pinned ? 'ring-1 ring-primary/60 shadow-md' : ''
+      className={`telegram-bubble rounded-2xl sm:rounded-[20px] p-3.5 sm:p-4 relative transition-all duration-200 flex flex-col justify-between ${
+        item.is_pinned ? 'ring-2 ring-[#2481CC]/70 shadow-md' : ''
       }`}
     >
-      {/* Top Header Row */}
-      <div className="p-4 sm:p-5 pb-2.5 flex items-center justify-between gap-3 border-b border-border/40">
-        {/* Left: Category Pill + Device & Timestamp */}
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-semibold border ${typeConfig.pillClass}`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${typeConfig.dotColor}`} />
-            <span>{typeConfig.label}</span>
+      {/* Top Header: Sender / Device Channel Title & Quick Actions */}
+      <div className="flex items-center justify-between gap-2 mb-2 pb-1 border-b border-border/30">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-semibold text-xs text-[#2481CC] dark:text-[#50A7EA] truncate">
+            {item.device_name || 'UniMap Cloud'}
           </span>
-
-          <div className="flex items-center gap-1 text-[11px] text-text-faint font-medium">
-            {getDeviceIcon(item.device_os)}
-            <span className="truncate max-w-[120px]">{item.device_name}</span>
-            <span>•</span>
-            <span>{formatDate(item.created_at)}</span>
-          </div>
+          <span className="text-[10px] text-text-faint font-mono">•</span>
+          <span className="text-[10px] text-text-faint uppercase font-mono tracking-wider">
+            {item.type}
+          </span>
         </div>
 
-        {/* Right: Pin & Delete Action Buttons */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Pin & Delete icons */}
+        <div className="flex items-center gap-0.5 shrink-0">
           <button
             onClick={() => togglePin(item.id)}
-            title={item.is_pinned ? 'Unpin note' : 'Pin note to top'}
-            className={`p-1.5 rounded-lg transition-colors ${
+            title={item.is_pinned ? 'Unpin message' : 'Pin message'}
+            className={`p-1 rounded-md transition-colors ${
               item.is_pinned
-                ? 'text-primary bg-primary/10'
-                : 'text-text-faint hover:text-text-main hover:bg-surface-elevated'
+                ? 'text-[#2481CC] dark:text-[#50A7EA]'
+                : 'text-text-faint hover:text-text-main'
             }`}
           >
             <Pin className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => deleteItem(item.id)}
-            title="Delete note"
-            className="p-1.5 rounded-lg text-text-faint hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            title="Delete message"
+            className="p-1 rounded-md text-text-faint hover:text-red-400 transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Main Content Area: Clean, Content-First, Natural Typography */}
-      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
-        {/* Title (if defined and distinct from content) */}
-        {item.title && item.title !== item.content && (
-          <h3 className="font-semibold text-sm sm:text-base text-text-main text-break-word leading-snug">
+      {/* Main Message Content Area */}
+      <div className="space-y-3 flex-1">
+        {/* Render distinct title only if NOT duplicate */}
+        {!isTitleRedundant && (
+          <h3 className="font-bold text-sm sm:text-[15px] text-text-main text-break-word leading-snug">
             {item.title}
           </h3>
         )}
 
-        {/* 1. Study Note (Text) */}
+        {/* 1. Text & Notes (Clean typography with Telegram alignment & justification) */}
         {item.type === 'text' && (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <div
-              className={`text-xs sm:text-sm text-text-main/90 leading-relaxed text-break-word whitespace-pre-wrap select-text ${
-                isExpanded ? 'max-h-none' : 'max-h-48 overflow-hidden relative'
+              className={`text-[13.5px] sm:text-[14.5px] text-text-main leading-[1.6] text-break-word whitespace-pre-wrap select-text ${
+                isExpanded ? 'max-h-none' : 'max-h-56 overflow-hidden relative'
               }`}
             >
               {renderContentWithLinks(item.content)}
               {!isExpanded && isLongContent && (
-                <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-surface to-transparent pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface to-transparent pointer-events-none" />
               )}
             </div>
 
             {isLongContent && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="text-text-muted hover:text-primary flex items-center gap-1 text-xs font-medium pt-1 transition-colors"
+                className="text-xs font-semibold text-[#2481CC] dark:text-[#50A7EA] hover:underline flex items-center gap-1 pt-0.5"
               >
                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 <span>{isExpanded ? 'Show less' : 'Read more'}</span>
               </button>
             )}
+
+            {/* Telegram-Style Rich Link Preview Card (If links exist in the message) */}
+            {firstUrl && (
+              <a
+                href={firstUrl.startsWith('http') ? firstUrl : `https://${firstUrl}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block mt-2 p-2.5 rounded-xl bg-[#2481CC]/5 dark:bg-[#50A7EA]/10 border-l-[3.5px] border-[#2481CC] dark:border-[#50A7EA] hover:bg-[#2481CC]/10 transition-colors group/preview"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-[#2481CC] dark:text-[#50A7EA] truncate">
+                    {getDomain(firstUrl)}
+                  </span>
+                  <ExternalLink className="w-3 h-3 text-[#2481CC] dark:text-[#50A7EA] shrink-0 opacity-75 group-hover/preview:opacity-100" />
+                </div>
+                <p className="text-[11px] text-text-muted truncate mt-0.5 font-mono">{firstUrl}</p>
+                <div className="mt-1 text-[11px] font-semibold text-[#2481CC] dark:text-[#50A7EA] uppercase tracking-wider">
+                  VIEW LINK
+                </div>
+              </a>
+            )}
           </div>
         )}
 
-        {/* 2. Link Bookmark */}
+        {/* 2. Pure Link Bookmark */}
         {item.type === 'link' && (
           <a
-            href={item.content}
+            href={item.content.startsWith('http') ? item.content : `https://${item.content}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="block p-3 rounded-xl bg-surface-elevated/70 hover:bg-surface-elevated border border-border/70 hover:border-primary/40 transition-all group/link"
+            className="block p-3 rounded-xl bg-[#2481CC]/5 dark:bg-[#50A7EA]/10 border-l-[3.5px] border-[#2481CC] dark:border-[#50A7EA] hover:bg-[#2481CC]/10 transition-colors group/link"
           >
-            <div className="flex items-start gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
-                <Link2 className="w-3.5 h-3.5" />
-              </div>
+            <div className="flex items-start gap-2">
+              <Link2 className="w-4 h-4 text-[#2481CC] dark:text-[#50A7EA] shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-semibold text-text-main group-hover/link:text-primary transition-colors text-break-word">
-                  {item.title || item.content}
+                <p className="text-xs sm:text-sm font-semibold text-text-main group-hover/link:text-[#2481CC] transition-colors text-break-word">
+                  {item.title || getDomain(item.content)}
                 </p>
-                <p className="text-[11px] text-text-faint truncate mt-0.5">{item.content}</p>
+                <p className="text-[11px] text-text-faint truncate mt-0.5 font-mono">{item.content}</p>
+                <div className="mt-1 text-[11px] font-semibold text-[#2481CC] dark:text-[#50A7EA] uppercase tracking-wider">
+                  OPEN WEBSITE ↗
+                </div>
               </div>
-              <ExternalLink className="w-3.5 h-3.5 text-text-faint group-hover/link:text-primary shrink-0 transition-colors mt-1" />
             </div>
           </a>
         )}
@@ -252,8 +223,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
         {item.type === 'code' && (
           <div className="space-y-2">
             <div
-              className={`rounded-xl bg-[#0F1219] border border-border/60 p-3 font-mono text-xs text-slate-200 overflow-x-auto ${
-                isExpanded ? 'max-h-none' : 'max-h-48'
+              className={`rounded-xl bg-[#0E1621] border border-border/60 p-3 font-mono text-xs text-slate-100 overflow-x-auto ${
+                isExpanded ? 'max-h-none' : 'max-h-56'
               }`}
             >
               <pre className="text-[11px] leading-relaxed text-break-word whitespace-pre-wrap font-mono">
@@ -264,7 +235,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
             {isLongContent && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="text-text-muted hover:text-primary flex items-center gap-1 text-xs font-medium transition-colors"
+                className="text-xs font-semibold text-[#2481CC] dark:text-[#50A7EA] hover:underline flex items-center gap-1"
               >
                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 <span>{isExpanded ? 'Show less code' : 'Expand full code'}</span>
@@ -279,21 +250,18 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
             {item.file_url ? (
               <div
                 onClick={() => onOpenMedia?.(item.file_url!, item.title)}
-                className="rounded-xl overflow-hidden bg-black/20 border border-border/60 cursor-pointer group/media max-h-64 flex items-center justify-center relative"
+                className="rounded-xl overflow-hidden bg-black/10 border border-border/50 cursor-pointer group/media max-h-72 flex items-center justify-center relative"
               >
                 <img
                   src={item.file_url}
                   alt={item.title}
-                  className="w-full h-auto max-h-64 object-contain group-hover/media:scale-[1.02] transition-transform duration-200"
+                  className="w-full h-auto max-h-72 object-contain group-hover/media:scale-[1.01] transition-transform duration-200"
                 />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold backdrop-blur-xs">
-                  Tap to Expand
-                </div>
               </div>
             ) : (
-              <div className="p-3 rounded-xl bg-surface-elevated border border-border/60 text-xs text-text-muted flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-rose-500 shrink-0" />
-                <span className="truncate">{item.file_name || 'Media Asset'}</span>
+              <div className="p-3 rounded-xl bg-surface-elevated text-xs text-text-muted flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-[#2481CC] shrink-0" />
+                <span className="truncate">{item.file_name || 'Attached Media'}</span>
               </div>
             )}
           </div>
@@ -301,64 +269,73 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
 
         {/* 5. Standalone HTML App */}
         {item.type === 'html' && (
-          <div className="p-3.5 rounded-xl bg-surface-elevated/70 border border-border/70 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center shrink-0">
-                <Globe className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-text-main truncate">Standalone Web App</p>
-                <p className="text-[11px] font-mono text-text-faint truncate">{item.file_name || 'app.html'}</p>
-              </div>
+          <div className="p-3.5 rounded-xl bg-[#2481CC]/5 dark:bg-[#50A7EA]/10 border border-[#2481CC]/20 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-[#2481CC] shrink-0" />
+              <p className="text-xs font-semibold text-text-main truncate">
+                {item.title || item.file_name || 'Interactive Web App'}
+              </p>
             </div>
-
             <button
               onClick={handleRunHtml}
-              className="w-full py-2 px-3 rounded-xl bg-primary hover:bg-primary-hover text-primary-text font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.98]"
+              className="w-full py-2 px-3 rounded-xl bg-[#2481CC] hover:bg-[#1E70B0] text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.98]"
             >
+              <span>Launch App</span>
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>Launch in Browser</span>
             </button>
           </div>
         )}
       </div>
 
-      {/* Footer: Tags & Discreet Quick Actions */}
-      <div className="px-4 sm:px-5 py-2.5 border-t border-border/40 bg-surface-elevated/30 flex items-center justify-between gap-2 text-xs">
-        {/* Tags */}
-        <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+      {/* Telegram-Style Bottom Footer: Tags on Left, Copy / Time / Double-Check on Right */}
+      <div className="mt-2.5 pt-2 border-t border-border/20 flex items-center justify-between gap-2 text-xs">
+        {/* Tags or File Size */}
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           {item.metadata?.tags && item.metadata.tags.length > 0 ? (
-            item.metadata.tags.slice(0, 3).map((tag, i) => (
+            item.metadata.tags.slice(0, 2).map((tag, i) => (
               <span
                 key={i}
-                className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-surface-elevated text-text-muted border border-border/50 truncate max-w-[90px]"
+                className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-surface-elevated text-text-muted border border-border/40"
               >
                 #{tag}
               </span>
             ))
           ) : (
             <span className="text-[10px] text-text-faint font-mono">
-              {item.file_size ? `${(item.file_size / 1024).toFixed(1)} KB` : 'Synced'}
+              {item.file_size ? `${(item.file_size / 1024).toFixed(1)} KB` : 'Saved'}
             </span>
           )}
         </div>
 
-        {/* Action Icons */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Right: 1-Tap Copy + Time + Telegram Double Checkmark */}
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleCopy}
-            title={copied ? 'Copied to clipboard' : 'Copy content'}
-            className="p-1.5 rounded-lg text-text-faint hover:text-text-main hover:bg-surface-elevated transition-colors"
+            title={copied ? 'Copied' : 'Copy message'}
+            className="p-1 rounded-md text-text-faint hover:text-text-main transition-colors flex items-center gap-1 text-[11px]"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? (
+              <span className="text-[#2481CC] dark:text-[#50A7EA] font-semibold">Copied!</span>
+            ) : (
+              <Copy className="w-3 h-3" />
+            )}
           </button>
-          <button
-            onClick={handleDownload}
-            title="Download item"
-            className="p-1.5 rounded-lg text-text-faint hover:text-text-main hover:bg-surface-elevated transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </button>
+
+          {item.type !== 'text' && (
+            <button
+              onClick={handleDownload}
+              title="Download file"
+              className="p-1 rounded-md text-text-faint hover:text-text-main transition-colors"
+            >
+              <Download className="w-3 h-3" />
+            </button>
+          )}
+
+          {/* Telegram Timestamp & Double Check */}
+          <div className="flex items-center gap-1 text-[11px] text-text-faint font-mono select-none">
+            <span>{formatTime(item.created_at)}</span>
+            <span className="text-[#2481CC] dark:text-[#50A7EA] text-[10px] font-bold">✓✓</span>
+          </div>
         </div>
       </div>
     </article>

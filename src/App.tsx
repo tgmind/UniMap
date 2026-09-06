@@ -68,7 +68,7 @@ const MainApp: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-text-main flex flex-col selection:bg-primary selection:text-white">
+    <div className="min-h-screen telegram-canvas text-text-main flex flex-col selection:bg-primary selection:text-white">
       {/* Top Navbar */}
       <Header
         viewMode={viewMode}

@@ -3,56 +3,72 @@
 @tailwind utilities;
 
 :root, [data-theme="dark"] {
-  /* Dark Mode: Google Material 3 & Meta Clean Titanium Obsidian */
+  /* Telegram Official Dark Mode Palette */
   color-scheme: dark;
-  --bg-main: #0B0D14;
-  --bg-surface: #141722;
-  --bg-surface-elevated: #1D2130;
-  --bg-surface-hover: #262B3D;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --primary: #3B82F6;
-  --primary-hover: #2563EB;
+  --bg-main: #0E1621;
+  --bg-surface: #182533;
+  --bg-surface-elevated: #202F3E;
+  --bg-surface-hover: #2B3D50;
+  --border-color: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --primary: #50A7EA;
+  --primary-hover: #3A96DA;
   --primary-text: #FFFFFF;
-  --primary-glow: rgba(59, 130, 246, 0.25);
-  --accent: #38BDF8;
-  --text-main: #F8FAFC;
-  --text-muted: #94A3B8;
-  --text-faint: #64748B;
-  --badge-bg: rgba(255, 255, 255, 0.06);
+  --primary-glow: rgba(80, 167, 234, 0.25);
+  --accent: #50A7EA;
+  --link-color: #64B5F6;
+  --text-main: #F5F7FA;
+  --text-muted: #A0B0C0;
+  --text-faint: #6A7B8C;
+  --badge-bg: rgba(255, 255, 255, 0.07);
+  --telegram-doodle-color: rgba(255, 255, 255, 0.04);
 }
 
-/* Light Mode: Editorial Canvas (Google & Apple Standard Crisp White on Soft Neutral Canvas) */
+/* Telegram Official Mint / Sage Light Mode Palette */
 [data-theme="light"] {
   color-scheme: light;
-  --bg-main: #F8F9FB;
+  --bg-main: #C9DFCA;
   --bg-surface: #FFFFFF;
-  --bg-surface-elevated: #F1F3F7;
-  --bg-surface-hover: #E8ECF2;
-  --border-color: rgba(0, 0, 0, 0.07);
-  --border-strong: rgba(0, 0, 0, 0.14);
-  --primary: #0F172A;
-  --primary-hover: #1E293B;
+  --bg-surface-elevated: #F3F7F2;
+  --bg-surface-hover: #E7EFE6;
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --primary: #2481CC;
+  --primary-hover: #1E70B0;
   --primary-text: #FFFFFF;
-  --primary-glow: rgba(15, 23, 42, 0.1);
-  --accent: #2563EB;
-  --text-main: #0F172A;
-  --text-muted: #475569;
-  --text-faint: #94A3B8;
-  --badge-bg: rgba(0, 0, 0, 0.04);
+  --primary-glow: rgba(36, 129, 204, 0.2);
+  --accent: #2481CC;
+  --link-color: #2481CC;
+  --text-main: #0F141A;
+  --text-muted: #4A5568;
+  --text-faint: #718096;
+  --badge-bg: rgba(0, 0, 0, 0.05);
+  --telegram-doodle-color: rgba(40, 80, 50, 0.10);
 }
 
 /* Typography & Base */
 html, body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Roboto", "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-main);
   color: var(--text-main);
+  background-image: radial-gradient(circle at 50% 50%, transparent 20%, rgba(0, 0, 0, 0.06) 100%);
 }
 
-/* Explicit Input Styling - NEVER white on white */
+/* Telegram Wallpaper Background Canvas */
+.telegram-canvas {
+  background-color: var(--bg-main);
+  background-image: 
+    url("/telegram-doodle.svg"),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(0, 0, 0, 0.05) 100%);
+  background-size: 380px 380px, 100% 100%;
+  background-repeat: repeat, no-repeat;
+  color: var(--telegram-doodle-color);
+}
+
+/* Explicit Input Styling */
 input, textarea, select {
   background-color: var(--bg-surface-elevated) !important;
   color: var(--text-main) !important;
@@ -77,11 +93,7 @@ input:-webkit-autofill:active {
   transition: background-color 5000s ease-in-out 0s;
 }
 
-/* Zero text chopping utilities */
-.text-wrap-balance {
-  text-wrap: balance;
-}
-
+/* Zero text chopping & Justified alignment utilities */
 .text-break-word {
   overflow-wrap: break-word;
   word-break: break-word;
@@ -115,28 +127,27 @@ input:-webkit-autofill:active {
   scrollbar-width: none;
 }
 
-/* Subtle Card - Enterprise Elevation & Crisp Separation */
-.subtle-card {
+/* Telegram Message Bubble Card */
+.telegram-bubble {
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 6px 20px -4px rgba(0, 0, 0, 0.06);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.subtle-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: 0 3px 6px 0 rgba(0, 0, 0, 0.05), 0 12px 28px -4px rgba(0, 0, 0, 0.09);
+.telegram-bubble:hover {
+  box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.14), 0 8px 24px -4px rgba(0, 0, 0, 0.08);
 }
 
-[data-theme="dark"] .subtle-card, :root:not([data-theme="light"]) .subtle-card {
-  background: var(--bg-surface);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+[data-theme="dark"] .telegram-bubble {
+  background: #182533;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.45);
 }
 
-[data-theme="dark"] .subtle-card:hover, :root:not([data-theme="light"]) .subtle-card:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(59, 130, 246, 0.2);
+[data-theme="dark"] .telegram-bubble:hover {
+  border-color: rgba(80, 167, 234, 0.3);
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.65);
 }
 
 /* Smooth theme transitions */
