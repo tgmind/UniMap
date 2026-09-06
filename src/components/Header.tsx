@@ -108,7 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
               placeholder="Search notes, links, code, HTML files..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-surface-elevated/70 hover:bg-surface-elevated border border-border focus:border-border-strong rounded-xl pl-9 pr-12 py-1.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
+              className="w-full bg-surface-elevated hover:bg-surface-elevated border border-border focus:border-border-strong rounded-xl pl-9 pr-12 py-1.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
             />
             <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-text-faint px-1.5 py-0.5 rounded border border-border bg-surface">
               ⌘K
@@ -122,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onOpenStorageModal}
             title="Free Storage Status (1 GB Supabase Quota)"
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-text-muted hover:text-text-main bg-surface-elevated/50 hover:bg-surface-elevated border border-border transition-colors font-mono"
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-elevated border border-border transition-colors font-mono"
           >
             <HardDrive className="w-3.5 h-3.5 text-accent" />
             <span className="text-[11px] hidden sm:inline">{mbUsed} MB</span>
@@ -141,7 +141,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onOpenFleetModal}
             title="Device Fleet & QR Pairing"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs text-text-muted hover:text-text-main bg-surface-elevated/50 hover:bg-surface-elevated border border-border transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-elevated border border-border transition-colors"
           >
             <Laptop className="w-3.5 h-3.5 text-accent" />
             <span className="text-[11px] font-medium hidden lg:inline">Fleet</span>
@@ -153,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => setShowThemeMenu(!showThemeMenu)}
               title={`Theme: ${activeThemeDef.name}`}
-              className="p-2 rounded-xl text-text-muted hover:text-text-main bg-surface-elevated/50 hover:bg-surface-elevated border border-border transition-colors"
+              className="p-2 rounded-xl text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-elevated border border-border transition-colors"
             >
               <Palette className="w-3.5 h-3.5" />
             </button>

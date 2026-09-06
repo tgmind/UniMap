@@ -221,7 +221,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
               placeholder="e.g. Physics Chapter 4, Fast Fourier Transform"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl px-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors text-break-word"
+              className="w-full bg-surface-elevated border border-border focus:border-border-strong rounded-xl px-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors text-break-word"
               required
             />
           </div>
@@ -246,7 +246,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
                 placeholder="<!DOCTYPE html><html><body><h1>Study Widget</h1></body></html>"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl p-3 font-mono text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors leading-relaxed"
+                className="w-full bg-surface-elevated border border-border focus:border-border-strong rounded-xl p-3 font-mono text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors leading-relaxed"
                 required
               />
             </div>
@@ -257,7 +257,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
             <div className="space-y-3">
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border border-dashed border-border hover:border-border-strong rounded-xl p-6 text-center cursor-pointer bg-surface-elevated/40 hover:bg-surface-elevated/70 transition-colors"
+                className="border border-dashed border-border hover:border-border-strong rounded-xl p-6 text-center cursor-pointer bg-surface-elevated/40 hover:bg-surface-elevated transition-colors"
               >
                 <UploadCloud className="w-6 h-6 text-text-faint mx-auto mb-1.5" />
                 <p className="text-xs font-medium text-text-main text-break-word">
@@ -339,7 +339,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
                 placeholder="Write your study notes, formulas, or bullet points..."
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl p-3 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors leading-relaxed"
+                className="w-full bg-surface-elevated border border-border focus:border-border-strong rounded-xl p-3 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors leading-relaxed"
                 required
               />
             </div>
@@ -368,7 +368,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
                 placeholder="// Code snippet..."
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl p-3 font-mono text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors leading-relaxed"
+                className="w-full bg-surface-elevated border border-border focus:border-border-strong rounded-xl p-3 font-mono text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors leading-relaxed"
                 required
               />
             </div>
@@ -383,7 +383,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
                 placeholder="https://..."
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl px-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors text-break-word"
+                className="w-full bg-surface-elevated border border-border focus:border-border-strong rounded-xl px-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors text-break-word"
                 required
               />
             </div>
@@ -404,7 +404,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose }) =
               placeholder="e.g. Physics, Exam 1, Algorithms"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
-              className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl px-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors text-break-word"
+              className="w-full bg-surface-elevated border border-border focus:border-border-strong rounded-xl px-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors text-break-word"
             />
           </div>
 

@@ -79,7 +79,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
         <div className="relative">
           <button
             onClick={() => setShowThemeMenu(!showThemeMenu)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-elevated/70 hover:bg-surface-elevated border border-border text-xs font-medium text-text-muted hover:text-text-main transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border text-xs font-medium text-text-muted hover:text-text-main transition-colors"
           >
             <span
               className="w-2.5 h-2.5 rounded-full"
@@ -227,7 +227,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
                       placeholder="e.g. Alex"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl pl-10 pr-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
+                      className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
                       required
                     />
                   </div>
@@ -245,7 +245,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
                     placeholder="student@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl pl-10 pr-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
+                    className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
                     required
                   />
                 </div>
@@ -262,7 +262,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onEnterGuestMode }) => {
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-surface-elevated/70 border border-border focus:border-border-strong rounded-xl pl-10 pr-3.5 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
+                    className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors"
                     required
                   />
                 </div>

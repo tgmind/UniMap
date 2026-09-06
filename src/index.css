@@ -8,8 +8,8 @@
   --bg-surface: #16181F;
   --bg-surface-elevated: #1E212B;
   --bg-surface-hover: #262A37;
-  --border-color: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
   --primary: #3B82F6;
   --primary-hover: #2563EB;
   --primary-text: #FFFFFF;
@@ -27,8 +27,8 @@
   --bg-surface: #111827;
   --bg-surface-elevated: #1F2937;
   --bg-surface-hover: #283548;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.15);
+  --border-color: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
   --primary: #2563EB;
   --primary-hover: #1D4ED8;
   --primary-text: #FFFFFF;
@@ -46,8 +46,8 @@
   --bg-surface: #0C0C0E;
   --bg-surface-elevated: #161619;
   --bg-surface-hover: #212126;
-  --border-color: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.18);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
   --primary: #FFFFFF;
   --primary-hover: #E4E4E7;
   --primary-text: #000000;
@@ -84,6 +84,29 @@ html, body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+}
+
+/* Explicit Input Styling - NEVER white on white */
+input, textarea, select {
+  background-color: var(--bg-surface-elevated) !important;
+  color: var(--text-main) !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-faint) !important;
+}
+
+/* Chrome / Brave / Safari Autofill Override */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-surface-elevated) inset !important;
+  -webkit-text-fill-color: var(--text-main) !important;
+  caret-color: var(--text-main) !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 /* Zero text chopping utilities */
@@ -96,7 +119,7 @@ html, body {
   word-break: break-word;
 }
 
-/* Subtle, refined scrollbars */
+/* Refined scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -115,7 +138,7 @@ html, body {
   background: var(--text-faint);
 }
 
-/* Card subtle border light reflection (Linear / Raycast style) */
+/* Subtle Card */
 .subtle-card {
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
@@ -129,6 +152,6 @@ html, body {
 }
 
 /* Smooth theme transitions */
-body, nav, header, main, div, button, input, textarea {
+body, nav, header, main, div, button {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
 }
