@@ -9,6 +9,8 @@ interface MobileBottomNavProps {
   onOpenAddModal: () => void;
   onOpenFleetModal: () => void;
   onOpenStorageModal: () => void;
+  isVisible?: boolean;
+  onWake?: () => void;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
@@ -17,12 +19,23 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenAddModal,
   onOpenFleetModal,
   onOpenStorageModal,
+  isVisible = true,
+  onWake,
 }) => {
   const { storageQuota } = useItems();
   const mbUsed = (storageQuota.totalBytes / (1024 * 1024)).toFixed(1);
 
   return (
     <>
+      {/* Bottom Edge Peek Sensor: when nav is hidden, tapping or swiping near bottom reveals it */}
+      {!isVisible && (
+        <div
+          onClick={() => onWake?.()}
+          className="fixed bottom-0 left-0 right-0 h-4 z-30 cursor-pointer pointer-events-auto md:hidden"
+          title="Tap to reveal navigation"
+        />
+      )}
+
       {/* Floating Action Button (FAB)
           Only displayed in Timeline & Canvas views to prevent collision with MessengerComposer in Bento view */}
       {viewMode !== 'bento' && (
@@ -30,14 +43,24 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           onClick={onOpenAddModal}
           title="Add New Study Item"
           aria-label="Add New Study Item"
-          className="fixed bottom-20 right-4 z-40 md:hidden w-13 h-13 rounded-2xl bg-primary hover:bg-primary-hover text-primary-text shadow-xl shadow-primary/35 flex items-center justify-center transition-transform active:scale-90"
+          className={`fixed right-4 z-40 md:hidden w-13 h-13 rounded-2xl bg-primary hover:bg-primary-hover text-primary-text shadow-xl shadow-primary/35 flex items-center justify-center transition-all duration-400 active:scale-90 ${
+            isVisible ? 'bottom-20' : 'bottom-6'
+          }`}
         >
           <Plus className="w-6 h-6 stroke-[2.5]" />
         </button>
       )}
 
-      {/* Fixed Bottom Glassmorphic Navigation Bar with Landscape and Safe-Area Optimization */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 md:hidden bg-surface/90 backdrop-blur-xl border-t border-border/80 px-2 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] flex items-center justify-around select-none">
+      {/* Fixed Bottom Glassmorphic Navigation Bar with Intelligent Auto-Hide */}
+      <nav
+        onTouchStart={() => onWake?.()}
+        onMouseEnter={() => onWake?.()}
+        className={`fixed bottom-0 left-0 right-0 z-30 md:hidden bg-surface/95 dark:bg-[#182533]/95 backdrop-blur-xl border-t border-border/80 px-2 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] flex items-center justify-around select-none transition-all duration-400 ease-in-out ${
+          isVisible
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : 'translate-y-full opacity-0 pointer-events-none'
+        }`}
+      >
         <button
           onClick={() => setViewMode('bento')}
           className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all ${

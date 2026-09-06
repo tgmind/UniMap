@@ -229,8 +229,8 @@ export const MessengerComposer: React.FC = () => {
 
       {/* Telegram Floating Message Bar: Auto-Expanding Textarea Capsule + Circular Blue Send Button */}
       <form onSubmit={handleSend} className="flex items-end gap-2 max-w-3xl mx-auto">
-        {/* Telegram Input Capsule */}
-        <div className="flex-1 min-w-0 min-h-[44px] rounded-[22px] bg-surface shadow-md border border-border/70 px-3 py-1.5 flex items-end gap-2 transition-all focus-within:ring-2 focus-within:ring-[#2481CC]/25">
+        {/* Telegram Input Capsule (One shade darker than whitish card background for distinct visual separation) */}
+        <div className="flex-1 min-w-0 min-h-[44px] rounded-[22px] bg-[#EBF2EA] dark:bg-[#121C26] shadow-md border border-black/10 dark:border-white/10 px-3 py-1.5 flex items-end gap-2 transition-all focus-within:ring-2 focus-within:ring-[#2481CC]/25 focus-within:border-[#2481CC]/60 focus-within:bg-[#E2ECE1] dark:focus-within:bg-[#162330]">
           {/* Smiley Icon */}
           <button
             type="button"

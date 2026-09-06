@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ItemProvider } from './context/ItemContext';
@@ -24,6 +24,98 @@ const MainApp: React.FC = () => {
   const [isFleetOpen, setIsFleetOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+  // Synchronized intelligent auto-hide for top header & mobile bottom navigation
+  const [isChromeVisible, setIsChromeVisible] = useState(true);
+  const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const wakeChrome = useCallback((delayMs = 3500) => {
+    setIsChromeVisible(true);
+    if (autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current);
+    }
+    if (delayMs > 0) {
+      autoHideTimerRef.current = setTimeout(() => {
+        setIsChromeVisible(false);
+      }, delayMs);
+    }
+  }, []);
+
+  const hideChrome = useCallback(() => {
+    if (autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current);
+    }
+    setIsChromeVisible(false);
+  }, []);
+
+  useEffect(() => {
+    // Reveal chrome initially for 3.5s then auto-hide
+    wakeChrome(3500);
+
+    let lastScrollY = window.scrollY || document.documentElement.scrollTop;
+    let touchStartY = 0;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY || document.documentElement.scrollTop;
+      const documentHeight = document.documentElement.scrollHeight;
+      const windowHeight = window.innerHeight;
+
+      const isScrollingDown = currentScrollY > lastScrollY + 8;
+      const isScrollingUp = currentScrollY < lastScrollY - 8;
+
+      if (isScrollingDown) {
+        // Hides both top header and bottom nav for full immersive viewing
+        hideChrome();
+      } else if (isScrollingUp) {
+        // Deliberate scroll up: reveal chrome
+        wakeChrome(3500);
+      } else if (currentScrollY <= 20) {
+        // At top of page: reveal chrome
+        wakeChrome(4000);
+      } else if (currentScrollY + windowHeight >= documentHeight - 30) {
+        // At bottom of page: reveal chrome
+        wakeChrome(4000);
+      }
+
+      lastScrollY = currentScrollY;
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const currentScrollY = window.scrollY || document.documentElement.scrollTop;
+      const currentY = e.touches[0].clientY;
+      const diffY = currentY - touchStartY;
+
+      // Deliberate pull-down at top reveals chrome
+      if (currentScrollY <= 30 && diffY > 20) {
+        wakeChrome(4000);
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.deltaY < -12) {
+        wakeChrome(3500);
+      } else if (e.deltaY > 12) {
+        hideChrome();
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('wheel', handleWheel, { passive: true });
+
+    return () => {
+      if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [wakeChrome, hideChrome]);
 
   // Lightbox
   const [lightboxData, setLightboxData] = useState<{ url: string; title: string } | null>(null);
@@ -78,6 +170,9 @@ const MainApp: React.FC = () => {
         onOpenFleetModal={() => setIsFleetOpen(true)}
         onOpenAuthModal={() => setIsAuthOpen(true)}
         onOpenConfigModal={() => setIsConfigOpen(true)}
+        isChromeVisible={isChromeVisible}
+        onWakeChrome={wakeChrome}
+        onHideChrome={hideChrome}
       />
 
       {/* Main Content Area with Top Clearance for Floating Header & Bottom Padding for Mobile Nav */}
@@ -86,6 +181,7 @@ const MainApp: React.FC = () => {
           <BentoView
             onOpenAddModal={() => setIsAddOpen(true)}
             onOpenMedia={(url, title) => setLightboxData({ url, title })}
+            isNavVisible={isChromeVisible}
           />
         )}
         {viewMode === 'timeline' && (
@@ -107,6 +203,8 @@ const MainApp: React.FC = () => {
         onOpenAddModal={() => setIsAddOpen(true)}
         onOpenFleetModal={() => setIsFleetOpen(true)}
         onOpenStorageModal={() => setIsStorageOpen(true)}
+        isVisible={isChromeVisible}
+        onWake={() => wakeChrome(4000)}
       />
 
       {/* Modals */}

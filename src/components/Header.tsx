@@ -29,6 +29,9 @@ interface HeaderProps {
   onOpenFleetModal: () => void;
   onOpenAuthModal: () => void;
   onOpenConfigModal: () => void;
+  isChromeVisible?: boolean;
+  onWakeChrome?: (delayMs?: number) => void;
+  onHideChrome?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -39,6 +42,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenFleetModal,
   onOpenAuthModal,
   onOpenConfigModal,
+  isChromeVisible,
+  onWakeChrome,
+  onHideChrome,
 }) => {
   const { searchQuery, setSearchQuery, storageQuota } = useItems();
   const { user, signOut, devices } = useAuth();
@@ -50,7 +56,8 @@ export const Header: React.FC<HeaderProps> = ({
   const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isHeaderActive = showMobileSearch || showUserMenu || Boolean(searchQuery.trim());
-  const isHeaderShown = isVisible || isHeaderActive;
+  const effectiveVisible = isChromeVisible !== undefined ? isChromeVisible : isVisible;
+  const isHeaderShown = effectiveVisible || isHeaderActive;
 
   // Helper to start/reset the auto-hide timer
   const startAutoHideTimer = (delayMs = 3500) => {
@@ -61,6 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
       // Only hide if not currently actively interacting (e.g. search or user menu open)
       if (!showMobileSearch && !showUserMenu && !searchQuery.trim()) {
         setIsVisible(false);
+        if (onHideChrome) onHideChrome();
       }
     }, delayMs);
   };
@@ -89,13 +97,16 @@ export const Header: React.FC<HeaderProps> = ({
         setIsVisible(false);
         setShowUserMenu(false);
         setShowMobileSearch(false);
+        if (onHideChrome) onHideChrome();
       } else if (isScrollingUp && currentScrollY <= 40) {
         // Deliberately scrolling up to the top: reveal header & start auto-hide countdown
         setIsVisible(true);
-        startAutoHideTimer(4000);
+        if (onWakeChrome) onWakeChrome(4000);
+        else startAutoHideTimer(4000);
       } else if (currentScrollY <= 5 && isScrollingUp) {
         setIsVisible(true);
-        startAutoHideTimer(4000);
+        if (onWakeChrome) onWakeChrome(4000);
+        else startAutoHideTimer(4000);
       }
 
       lastScrollY = currentScrollY;
@@ -114,7 +125,8 @@ export const Header: React.FC<HeaderProps> = ({
       if (currentScrollY <= 25 && diffY > 18) {
         // User deliberately pulled down at top: reveal header
         setIsVisible(true);
-        startAutoHideTimer(4000);
+        if (onWakeChrome) onWakeChrome(4000);
+        else startAutoHideTimer(4000);
       }
     };
 
@@ -123,7 +135,8 @@ export const Header: React.FC<HeaderProps> = ({
       const currentScrollY = window.scrollY || document.documentElement.scrollTop;
       if (currentScrollY <= 25 && e.deltaY < -8) {
         setIsVisible(true);
-        startAutoHideTimer(4000);
+        if (onWakeChrome) onWakeChrome(4000);
+        else startAutoHideTimer(4000);
       }
     };
 
@@ -150,12 +163,18 @@ export const Header: React.FC<HeaderProps> = ({
       {!isHeaderShown && (
         <div
           onClick={() => {
-            setIsVisible(true);
-            startAutoHideTimer(4000);
+            if (onWakeChrome) onWakeChrome(4000);
+            else {
+              setIsVisible(true);
+              startAutoHideTimer(4000);
+            }
           }}
           onMouseEnter={() => {
-            setIsVisible(true);
-            startAutoHideTimer(4000);
+            if (onWakeChrome) onWakeChrome(4000);
+            else {
+              setIsVisible(true);
+              startAutoHideTimer(4000);
+            }
           }}
           className="fixed top-0 left-0 right-0 h-5 z-40 cursor-pointer pointer-events-auto"
           title="Tap to reveal header"
@@ -164,12 +183,17 @@ export const Header: React.FC<HeaderProps> = ({
 
       <header
         onMouseEnter={() => {
+          if (onWakeChrome) onWakeChrome(6000);
           if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
         }}
         onMouseLeave={() => {
-          if (!isHeaderActive) startAutoHideTimer(3000);
+          if (!isHeaderActive) {
+            if (onWakeChrome) onWakeChrome(3000);
+            else startAutoHideTimer(3000);
+          }
         }}
         onTouchStart={() => {
+          if (onWakeChrome) onWakeChrome(6000);
           if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
         }}
         className={`fixed top-0 left-0 right-0 z-40 w-full bg-transparent border-b border-transparent transition-all duration-400 ease-in-out ${
