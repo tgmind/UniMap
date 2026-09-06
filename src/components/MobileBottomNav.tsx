@@ -99,7 +99,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           title="Add New Item"
           aria-label="Add New Item"
           className={`fixed right-4 z-40 md:hidden w-14 h-14 rounded-2xl bg-[#2481CC] hover:bg-[#1E70B0] text-white shadow-xl shadow-[#2481CC]/35 flex items-center justify-center transition-all duration-300 active:scale-90 ${
-            isExpanded ? 'bottom-22' : 'bottom-10'
+            isExpanded ? 'bottom-24' : 'bottom-10'
           }`}
         >
           <Plus className="w-6 h-6 stroke-[2.5]" />

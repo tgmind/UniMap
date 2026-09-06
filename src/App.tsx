@@ -180,7 +180,7 @@ const MainApp: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen telegram-canvas text-text-main flex flex-col selection:bg-primary selection:text-white">
+    <div className={`min-h-screen ${viewMode === 'canvas' ? 'bg-background' : 'telegram-canvas'} text-text-main flex flex-col selection:bg-primary selection:text-white`}>
       {/* Top Navbar */}
       <Header
         viewMode={viewMode}
@@ -195,8 +195,14 @@ const MainApp: React.FC = () => {
         onHideChrome={hideChrome}
       />
 
-      {/* Main Content Area with Top Clearance for Floating Header & Bottom Padding for Mobile Nav */}
-      <main className="flex-1 w-full mx-auto pt-14 sm:pt-16 py-2 sm:py-4 pb-20 md:pb-8">
+      {/* Main Content Area: Edge-to-edge full screen for Canvas, padded container for Bento/Timeline */}
+      <main
+        className={
+          viewMode === 'canvas'
+            ? 'fixed inset-0 w-full h-full overflow-hidden'
+            : 'flex-1 w-full mx-auto pt-14 sm:pt-16 py-2 sm:py-4 pb-20 md:pb-8'
+        }
+      >
         {viewMode === 'bento' && (
           <BentoView
             onOpenAddModal={() => setIsAddOpen(true)}
@@ -212,6 +218,8 @@ const MainApp: React.FC = () => {
         {viewMode === 'canvas' && (
           <CanvasView
             onOpenMedia={(url, title) => setLightboxData({ url, title })}
+            isNavVisible={isBottomNavExpanded}
+            isHeaderVisible={isChromeVisible}
           />
         )}
       </main>

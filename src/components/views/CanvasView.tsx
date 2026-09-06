@@ -17,11 +17,17 @@ import {
 
 interface CanvasViewProps {
   onOpenMedia: (url: string, title: string) => void;
+  isNavVisible?: boolean;
+  isHeaderVisible?: boolean;
 }
 
 type InteractionMode = 'pan' | 'move';
 
-export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
+export const CanvasView: React.FC<CanvasViewProps> = ({
+  onOpenMedia,
+  isNavVisible = false,
+  isHeaderVisible = true,
+}) => {
   const { items, updateCanvasPosition } = useItems();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -380,9 +386,13 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
   };
 
   return (
-    <div className="relative w-full h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden border border-border bg-background select-none touch-none shadow-sm">
-      {/* Top Floating Controls Bar */}
-      <div className="absolute top-3 left-3 right-3 sm:right-auto z-20 flex items-center justify-between sm:justify-start gap-1.5 p-1 rounded-2xl bg-surface/90 backdrop-blur-md border border-border shadow-md">
+    <div className="relative w-full h-full overflow-hidden select-none touch-none bg-background">
+      {/* Top Floating Controls Bar (Slides down under header when header is shown, up to edge when hidden) */}
+      <div
+        className={`absolute left-3 right-3 sm:right-auto z-20 flex items-center justify-between sm:justify-start gap-1.5 p-1 rounded-2xl bg-surface/95 border border-border shadow-md transition-all duration-300 ${
+          isHeaderVisible ? 'top-16 sm:top-18' : 'top-3 sm:top-4'
+        }`}
+      >
         {/* Interaction Mode Switcher (Hand Pan vs Node Move) */}
         <div className="flex items-center bg-surface-elevated/80 rounded-xl p-0.5 border border-border/60">
           <button
@@ -465,7 +475,11 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
 
       {/* Floating Gesture Hint Banner (Fades out automatically) */}
       {showGestureHint && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 px-3.5 py-1.5 rounded-full bg-surface/90 backdrop-blur-md border border-border shadow-lg text-[11px] text-text-muted flex items-center gap-2 animate-fade-in pointer-events-none whitespace-nowrap">
+        <div
+          className={`absolute left-1/2 -translate-x-1/2 z-20 px-3.5 py-1.5 rounded-full bg-surface/95 border border-border shadow-lg text-[11px] text-text-muted flex items-center gap-2 animate-fade-in pointer-events-none whitespace-nowrap transition-all duration-300 ${
+            isHeaderVisible ? 'top-28 sm:top-30' : 'top-16'
+          }`}
+        >
           <Sparkles className="w-3.5 h-3.5 text-primary" />
           <span>Touch & hold card to lift • Pinch to zoom • Drag to pan</span>
         </div>
@@ -473,7 +487,11 @@ export const CanvasView: React.FC<CanvasViewProps> = ({ onOpenMedia }) => {
 
       {/* Bottom Floating Node Quick-Jump Navigator Dock */}
       {items.length > 0 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 w-[92%] sm:w-auto max-w-md flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-surface/95 backdrop-blur-md border border-border shadow-xl">
+        <div
+          className={`absolute left-1/2 -translate-x-1/2 z-20 w-[92%] sm:w-auto max-w-md flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-surface/95 border border-border shadow-xl transition-all duration-300 ${
+            isNavVisible ? 'bottom-[88px] sm:bottom-6' : 'bottom-10 sm:bottom-6'
+          }`}
+        >
           <button
             onClick={() => navigateToNode(activeNodeIdx - 1)}
             title="Previous Node"

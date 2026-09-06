@@ -437,7 +437,7 @@ export const Header: React.FC<HeaderProps> = ({
               placeholder="Search notes, code, links, HTML..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-surface-elevated/95 backdrop-blur-md border border-border focus:border-primary rounded-xl pl-9 pr-9 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors shadow-lg"
+              className="w-full bg-surface-elevated border border-border focus:border-primary rounded-xl pl-9 pr-9 py-2 text-xs text-text-main placeholder-text-faint focus:outline-none transition-colors shadow-lg"
             />
             {searchQuery && (
               <button

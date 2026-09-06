@@ -195,7 +195,7 @@ export const BentoView: React.FC<BentoViewProps> = ({
           title="Scroll to bottom"
           aria-label="Scroll to bottom"
           className={`fixed right-4 sm:right-8 z-30 w-11 h-11 rounded-full bg-white dark:bg-[#18222D] border border-slate-200/90 dark:border-white/10 shadow-xl flex items-center justify-center text-[#2481CC] dark:text-[#50A7EA] transition-all duration-300 hover:scale-110 active:scale-95 animate-fade-in group ${
-            isNavVisible ? 'bottom-[8.5rem] sm:bottom-22' : 'bottom-22 sm:bottom-22'
+            isNavVisible ? 'bottom-[8.5rem] sm:bottom-24' : 'bottom-24 sm:bottom-24'
           }`}
         >
           <ChevronDown className="w-5 h-5 stroke-[2.5] group-hover:translate-y-0.5 transition-transform" />
