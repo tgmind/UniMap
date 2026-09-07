@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ConnectedDevice, UserProfile } from '../types';
-import { getSupabaseClient, getSupabaseConfig } from '../lib/supabase';
+import { getSupabaseClient, getSupabaseConfig, ensureClientAuth, resetSupabaseClient } from '../lib/supabase';
+import { localDb } from '../lib/db';
 import {
   detectBrowser,
   detectDeviceOS,
@@ -83,6 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (activeUser) {
+          ensureClientAuth();
           setUser(activeUser);
           await registerCurrentDeviceOnline(activeUser.id);
           await fetchDevicesOnline(activeUser.id);
@@ -91,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Listen for auth state changes
         const { data: authListener } = client.auth.onAuthStateChange(async (event, session) => {
           if (event === 'SIGNED_IN' && session?.user) {
+            ensureClientAuth(session.access_token);
             const u: UserProfile = {
               id: session.user.id,
               email: session.user.email || '',
@@ -330,6 +333,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (authenticatedUser) {
+      ensureClientAuth(accessToken);
       setUser(authenticatedUser);
       await registerCurrentDeviceOnline(authenticatedUser.id);
       await fetchDevicesOnline(authenticatedUser.id);
@@ -343,6 +347,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const client = getSupabaseClient();
     if (client) {
       await client.auth.signOut();
+    }
+    resetSupabaseClient();
+    try {
+      await localDb.items.clear();
+    } catch (e) {
+      console.warn('Error clearing localDb items on logout:', e);
     }
     localStorage.removeItem('unimap_auth_token');
     localStorage.removeItem('unimap_guest_mode');

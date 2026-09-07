@@ -21,11 +21,55 @@ export function saveSupabaseConfig(url: string, key: string) {
   supabaseInstance = null; // Reset client instance
 }
 
+export function resetSupabaseClient() {
+  supabaseInstance = null;
+}
+
+export function getStoredAuthToken(): string | null {
+  try {
+    const raw = localStorage.getItem('unimap_auth_token');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.access_token) return parsed.access_token;
+    }
+  } catch {}
+  return null;
+}
+
+export function ensureClientAuth(token?: string | null): SupabaseClient | null {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  const effectiveToken = token || getStoredAuthToken();
+  if (effectiveToken) {
+    try {
+      const anyClient = client as any;
+      if (anyClient.rest?.headers) {
+        if (typeof anyClient.rest.headers.set === 'function') {
+          anyClient.rest.headers.set('Authorization', `Bearer ${effectiveToken}`);
+        } else {
+          anyClient.rest.headers['Authorization'] = `Bearer ${effectiveToken}`;
+        }
+      }
+      client.realtime.setAuth(effectiveToken);
+    } catch (e) {
+      console.warn('Error setting client auth header:', e);
+    }
+  }
+  return client;
+}
+
 export function getSupabaseClient(): SupabaseClient | null {
   const { url, key, isConfigured } = getSupabaseConfig();
   if (!isConfigured) return null;
 
   if (!supabaseInstance) {
+    const storedToken = getStoredAuthToken();
+    const globalHeaders: Record<string, string> = {};
+    if (storedToken) {
+      globalHeaders['Authorization'] = `Bearer ${storedToken}`;
+    }
+
     supabaseInstance = createClient(url, key, {
       auth: {
         persistSession: true,
@@ -33,12 +77,21 @@ export function getSupabaseClient(): SupabaseClient | null {
         detectSessionInUrl: true,
         storageKey: 'unimap_auth_token',
       },
+      global: {
+        headers: globalHeaders,
+      },
       realtime: {
         params: {
-          eventsPerSecond: 10,
+          eventsPerSecond: 20,
         },
       },
     });
+
+    if (storedToken) {
+      try {
+        supabaseInstance.realtime.setAuth(storedToken);
+      } catch (e) {}
+    }
   }
   return supabaseInstance;
 }

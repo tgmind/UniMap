@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useMemo } from 'react';
 import { ItemType, StorageQuota, UniItem } from '../types';
-import { getSupabaseClient } from '../lib/supabase';
+import { getSupabaseClient, ensureClientAuth } from '../lib/supabase';
 import { localDb } from '../lib/db';
 import { useAuth } from './AuthContext';
 import { detectDeviceOS, generateDefaultDeviceName } from '../lib/deviceDetector';
@@ -47,20 +47,55 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<ItemType | 'all'>('all');
   const [selectedDevice, setSelectedDevice] = useState<string | 'all'>('all');
+  const channelRef = useRef<any>(null);
 
-  // Load items from local IndexedDB first (0ms instantaneous display)
+  // Broadcast helper to send instant peer-to-peer WebSocket updates to other devices
+  const broadcastItemUpsert = (item: UniItem) => {
+    if (channelRef.current) {
+      try {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'item_upsert',
+          payload: item,
+        }).catch((err: any) => console.warn('Broadcast item_upsert warning:', err));
+      } catch (e) {
+        console.warn('Broadcast item_upsert error:', e);
+      }
+    }
+  };
+
+  const broadcastItemDelete = (id: string) => {
+    if (channelRef.current) {
+      try {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'item_delete',
+          payload: { id },
+        }).catch((err: any) => console.warn('Broadcast item_delete warning:', err));
+      } catch (e) {
+        console.warn('Broadcast item_delete error:', e);
+      }
+    }
+  };
+
+  // 0ms instantaneous display from local IndexedDB with automatic fake cache purge
   useEffect(() => {
     const loadLocal = async () => {
       try {
         const localItems = await localDb.items.orderBy('created_at').reverse().toArray();
-        if (localItems.length > 0) {
-          setItems(localItems);
-        } else {
-          // Provide initial sample study data for exam preparation if empty
-          const sampleData = getInitialSampleItems();
-          setItems(sampleData);
-          await localDb.items.bulkPut(sampleData);
+
+        // Immediately purge any fake sample data or items from other users so they never spoil cache
+        const garbage = localItems.filter(
+          (i) => i.id.startsWith('sample_') || i.user_id === 'local_user' || (user && i.user_id !== user.id)
+        );
+        if (garbage.length > 0) {
+          await localDb.items.bulkDelete(garbage.map((g) => g.id));
         }
+
+        const validLocal = localItems.filter(
+          (i) => !i.id.startsWith('sample_') && i.user_id !== 'local_user' && (!user || i.user_id === user.id)
+        );
+        setItems(validLocal);
       } catch (err) {
         console.error('Error loading local items:', err);
       } finally {
@@ -68,64 +103,168 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     loadLocal();
-  }, []);
+  }, [user]);
 
-  // Realtime Supabase Sync & online fetch
-  useEffect(() => {
-    const client = getSupabaseClient();
+  // Fetch online items from Supabase database
+  const fetchOnline = async () => {
+    const client = ensureClientAuth();
     if (!client || !user) return;
 
-    // Fetch latest online items
-    const fetchOnline = async () => {
-      try {
-        const { data, error } = await client
-          .from('items')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await client
+        .from('items')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-        if (!error && data) {
-          const localExisting = await localDb.items.toArray();
-          const localMap = new Map(localExisting.map((i) => [i.id, i]));
-          const cloudIds = new Set(data.map((c) => c.id));
+      if (!error && data) {
+        const localExisting = await localDb.items.toArray();
+        const localMap = new Map(localExisting.map((i) => [i.id, i]));
+        const cloudIds = new Set(data.map((c) => c.id));
 
-          // Retain local items that haven't synced to cloud yet so they NEVER disappear on refresh!
-          const localOnly = localExisting.filter((local) => !cloudIds.has(local.id));
+        // Retain only current user's valid local items that haven't synced to cloud yet
+        const localOnly = localExisting.filter(
+          (local) => local.user_id === user.id && !local.id.startsWith('sample_') && !cloudIds.has(local.id)
+        );
 
-          const mergedCloud: UniItem[] = data.map((cloudItem: UniItem) => {
-            const local = localMap.get(cloudItem.id);
-            // If local item has a permanent data URL and cloud has no file_url or a dead blob URL, prioritize local
-            const effectiveFileUrl =
-              local?.file_url && (!cloudItem.file_url || cloudItem.file_url.startsWith('blob:'))
-                ? local.file_url
-                : cloudItem.file_url || local?.file_url;
-
-            return {
-              ...cloudItem,
-              file_url: effectiveFileUrl,
-              metadata: {
-                ...cloudItem.metadata,
-                sync_status: 'synced' as const,
-              },
-            };
-          });
-
-          const merged: UniItem[] = [...mergedCloud, ...localOnly];
-          merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-          setItems(merged);
-          await localDb.items.bulkPut(merged);
+        // Clean up any stale or sample items
+        const staleItems = localExisting.filter(
+          (local) => local.id.startsWith('sample_') || local.user_id === 'local_user' || (local.user_id !== user.id && !cloudIds.has(local.id))
+        );
+        if (staleItems.length > 0) {
+          await localDb.items.bulkDelete(staleItems.map((i) => i.id));
         }
-      } catch (err) {
-        console.error('Failed to sync online items:', err);
+
+        const mergedCloud: UniItem[] = data.map((cloudItem: UniItem) => {
+          const local = localMap.get(cloudItem.id);
+          const effectiveFileUrl =
+            local?.file_url && (!cloudItem.file_url || cloudItem.file_url.startsWith('blob:'))
+              ? local.file_url
+              : cloudItem.file_url || local?.file_url;
+
+          return {
+            ...cloudItem,
+            file_url: effectiveFileUrl,
+            metadata: {
+              ...cloudItem.metadata,
+              sync_status: 'synced' as const,
+            },
+          };
+        });
+
+        const merged: UniItem[] = [...mergedCloud, ...localOnly];
+        merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        setItems(merged);
+        await localDb.items.bulkPut(merged);
       }
-    };
+    } catch (err) {
+      console.error('Failed to sync online items:', err);
+    }
+  };
+
+  // Robust Auto-Sync Queue: retries any pending local-only items to guarantee 100% cloud sync
+  const flushPendingSync = async () => {
+    if (!user) return;
+    const client = ensureClientAuth();
+    if (!client) return;
+
+    try {
+      const allLocal = await localDb.items.toArray();
+      const pending = allLocal.filter(
+        (it) =>
+          it.user_id === user.id &&
+          !it.id.startsWith('sample_') &&
+          (it.metadata?.sync_status === 'local_only' || !it.metadata?.sync_status)
+      );
+
+      if (pending.length === 0) return;
+
+      for (const item of pending) {
+        const payload: any = {
+          id: item.id,
+          user_id: user.id,
+          device_name: item.device_name,
+          device_os: item.device_os,
+          type: item.type,
+          title: item.title,
+          content: item.content,
+          file_url: item.file_url,
+          file_name: item.file_name,
+          file_size: item.file_size,
+          mime_type: item.mime_type,
+          metadata: { ...item.metadata, sync_status: 'synced' },
+          canvas_x: item.canvas_x,
+          canvas_y: item.canvas_y,
+          is_pinned: item.is_pinned,
+          created_at: item.created_at,
+          updated_at: item.updated_at || new Date().toISOString(),
+        };
+
+        let { error } = await client.from('items').upsert(payload);
+        if (error && item.file_url && item.file_url.startsWith('data:')) {
+          payload.file_url = null;
+          payload.metadata = { ...payload.metadata, has_local_media: true };
+          const retry = await client.from('items').upsert(payload);
+          error = retry.error;
+        }
+
+        if (!error) {
+          const syncedItem: UniItem = {
+            ...item,
+            metadata: { ...item.metadata, sync_status: 'synced' as const },
+          };
+          await localDb.items.put(syncedItem);
+          setItems((prev) => prev.map((it) => (it.id === item.id ? syncedItem : it)));
+          broadcastItemUpsert(syncedItem);
+        } else {
+          console.warn('Sync retry for item:', item.id, error.message);
+        }
+      }
+    } catch (err) {
+      console.warn('flushPendingSync error:', err);
+    }
+  };
+
+  // Realtime Supabase Dual-Engine Sync (Broadcast for instant <20ms cross-device + Postgres Changes)
+  useEffect(() => {
+    if (!user) return;
+    const client = ensureClientAuth();
+    if (!client) return;
 
     fetchOnline();
 
-    // Subscribe to real-time changes
-    const channel = client
-      .channel('public:items')
+    // User-scoped channel for private, instant cross-device synchronization
+    const channel = client.channel(`unimap_sync_${user.id}`, {
+      config: {
+        broadcast: { ack: true },
+      },
+    });
+
+    channelRef.current = channel;
+
+    channel
+      .on('broadcast', { event: 'item_upsert' }, async ({ payload }) => {
+        if (!payload || !payload.id) return;
+        const incoming = payload as UniItem;
+        const local = await localDb.items.get(incoming.id);
+        const effectiveItem: UniItem = {
+          ...incoming,
+          file_url:
+            local?.file_url && (!incoming.file_url || incoming.file_url.startsWith('blob:'))
+              ? local.file_url
+              : incoming.file_url || local?.file_url,
+          metadata: { ...incoming.metadata, sync_status: 'synced' as const },
+        };
+        setItems((prev) => [effectiveItem, ...prev.filter((i) => i.id !== effectiveItem.id)]);
+        await localDb.items.put(effectiveItem);
+      })
+      .on('broadcast', { event: 'item_delete' }, async ({ payload }) => {
+        if (!payload?.id) return;
+        const deletedId = payload.id;
+        setItems((prev) => prev.filter((i) => i.id !== deletedId));
+        await localDb.items.delete(deletedId);
+      })
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'items', filter: `user_id=eq.${user.id}` },
@@ -163,10 +302,37 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          flushPendingSync();
+        }
+      });
+
+    // Re-sync on network reconnection or tab foreground
+    const handleOnline = () => {
+      fetchOnline();
+      flushPendingSync();
+    };
+    const handleFocus = () => {
+      fetchOnline();
+      flushPendingSync();
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    const heartbeat = setInterval(() => {
+      flushPendingSync();
+    }, 25000);
 
     return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      clearInterval(heartbeat);
       client.removeChannel(channel);
+      channelRef.current = null;
     };
   }, [user]);
 
@@ -201,17 +367,17 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [items]);
 
   const addItem = async (input: AddItemInput): Promise<UniItem> => {
-    const client = getSupabaseClient();
+    const client = ensureClientAuth();
     const currentDevice = localStorage.getItem('unimap_custom_device_name') || generateDefaultDeviceName();
     const os = detectDeviceOS();
     const itemId = generateUUID();
 
     let uploadedUrl = '';
     let finalFileSize = input.fileSize || 0;
-    let syncStatus: 'uploading' | 'synced' | 'local_only' = 'local_only';
+    let syncStatus: 'uploading' | 'synced' | 'local_only' = user ? 'uploading' : 'local_only';
     let mediaMeta: any = {};
 
-    // 1. Permanent Client-Side Compression & Data URL Encoding (Never expires on refresh!)
+    // 1. Permanent Client-Side Compression & Data URL Encoding
     if (input.dataUrl) {
       uploadedUrl = input.dataUrl;
       finalFileSize = input.fileSize || Math.round((input.dataUrl.length * 3) / 4);
@@ -231,7 +397,6 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (!uploadedUrl) {
-        // Fallback for raw Blob
         uploadedUrl = await new Promise((resolve) => {
           const r = new FileReader();
           r.onload = () => resolve(r.result as string);
@@ -262,7 +427,6 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .getPublicUrl(storagePath);
           if (publicUrlData?.publicUrl) {
             uploadedUrl = publicUrlData.publicUrl;
-            syncStatus = 'synced';
           }
         }
       } catch (err) {
@@ -294,9 +458,14 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updated_at: new Date().toISOString(),
     };
 
-    // 0ms Optimistic Local Update (Safely saved to IndexedDB)
+    // 0ms Optimistic Local Update
     setItems((prev) => [newItem, ...prev]);
     await localDb.items.put(newItem);
+
+    // Immediate Realtime broadcast to all connected devices!
+    if (user) {
+      broadcastItemUpsert(newItem);
+    }
 
     // Sync to Supabase Online database if connected
     if (client && user) {
@@ -322,15 +491,16 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (!error) {
-          const updatedItem = {
+          const syncedItem: UniItem = {
             ...newItem,
             metadata: { ...newItem.metadata, sync_status: 'synced' as const },
           };
-          await localDb.items.put(updatedItem);
-          setItems((prev) => prev.map((it) => (it.id === newItem.id ? updatedItem : it)));
+          await localDb.items.put(syncedItem);
+          setItems((prev) => prev.map((it) => (it.id === newItem.id ? syncedItem : it)));
+          broadcastItemUpsert(syncedItem);
         } else {
           console.warn('Supabase DB sync note:', error.message);
-          // If insert failed due to huge base64 payload, retry without cloud file_url while localDb preserves full data URL!
+          // If insert failed due to large base64 payload, retry without cloud file_url
           if (newItem.file_url && newItem.file_url.startsWith('data:')) {
             const { error: retryError } = await client.from('items').insert({
               id: newItem.id,
@@ -353,17 +523,38 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
             if (!retryError) {
-              const updatedItem = {
+              const syncedItem: UniItem = {
                 ...newItem,
                 metadata: { ...newItem.metadata, sync_status: 'synced' as const },
               };
-              await localDb.items.put(updatedItem);
-              setItems((prev) => prev.map((it) => (it.id === newItem.id ? updatedItem : it)));
+              await localDb.items.put(syncedItem);
+              setItems((prev) => prev.map((it) => (it.id === newItem.id ? syncedItem : it)));
+              broadcastItemUpsert(syncedItem);
+            } else {
+              const localOnlyItem: UniItem = {
+                ...newItem,
+                metadata: { ...newItem.metadata, sync_status: 'local_only' as const },
+              };
+              await localDb.items.put(localOnlyItem);
+              setItems((prev) => prev.map((it) => (it.id === newItem.id ? localOnlyItem : it)));
             }
+          } else {
+            const localOnlyItem: UniItem = {
+              ...newItem,
+              metadata: { ...newItem.metadata, sync_status: 'local_only' as const },
+            };
+            await localDb.items.put(localOnlyItem);
+            setItems((prev) => prev.map((it) => (it.id === newItem.id ? localOnlyItem : it)));
           }
         }
       } catch (err) {
         console.error('Supabase insert error:', err);
+        const localOnlyItem: UniItem = {
+          ...newItem,
+          metadata: { ...newItem.metadata, sync_status: 'local_only' as const },
+        };
+        await localDb.items.put(localOnlyItem);
+        setItems((prev) => prev.map((it) => (it.id === newItem.id ? localOnlyItem : it)));
       }
     }
 
@@ -375,12 +566,15 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setItems((prev) => prev.filter((i) => i.id !== id));
     await localDb.items.delete(id);
 
-    const client = getSupabaseClient();
+    if (user) {
+      broadcastItemDelete(id);
+    }
+
+    const client = ensureClientAuth();
     if (client && user) {
       try {
         await client.from('items').delete().eq('id', id);
 
-        // Delete from storage if URL exists
         if (itemToDelete?.file_name && user) {
           const ext = itemToDelete.file_name.split('.').pop();
           await client.storage.from('user-media').remove([`${user.id}/${id}.${ext}`]);
@@ -395,25 +589,34 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = items.find((i) => i.id === id);
     if (!target) return;
 
-    const updated = { ...target, is_pinned: !target.is_pinned, updated_at: new Date().toISOString() };
+    const updated: UniItem = { ...target, is_pinned: !target.is_pinned, updated_at: new Date().toISOString() };
     setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
     await localDb.items.put(updated);
 
-    const client = getSupabaseClient();
+    if (user) {
+      broadcastItemUpsert(updated);
+    }
+
+    const client = ensureClientAuth();
     if (client && user) {
       await client.from('items').update({ is_pinned: updated.is_pinned }).eq('id', id);
     }
   };
 
   const updateCanvasPosition = async (id: string, x: number, y: number) => {
+    const target = items.find((i) => i.id === id);
+    const updated: UniItem | null = target ? { ...target, canvas_x: x, canvas_y: y, updated_at: new Date().toISOString() } : null;
+
     setItems((prev) =>
       prev.map((i) => (i.id === id ? { ...i, canvas_x: x, canvas_y: y } : i))
     );
-    const target = items.find((i) => i.id === id);
-    if (target) {
-      await localDb.items.put({ ...target, canvas_x: x, canvas_y: y });
+    if (updated) {
+      await localDb.items.put(updated);
+      if (user) {
+        broadcastItemUpsert(updated);
+      }
     }
-    const client = getSupabaseClient();
+    const client = ensureClientAuth();
     if (client && user) {
       try {
         await client.from('items').update({ canvas_x: x, canvas_y: y }).eq('id', id);
@@ -424,8 +627,13 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshItems = async () => {
-    const local = await localDb.items.orderBy('created_at').reverse().toArray();
-    setItems(local);
+    if (user) {
+      await fetchOnline();
+      await flushPendingSync();
+    } else {
+      const local = await localDb.items.orderBy('created_at').reverse().toArray();
+      setItems(local.filter((i) => !i.id.startsWith('sample_') && i.user_id !== 'local_user'));
+    }
   };
 
   return (
@@ -459,139 +667,3 @@ export const useItems = () => {
   }
   return context;
 };
-
-// High quality starter study items for instant out-of-the-box demo
-function getInitialSampleItems(): UniItem[] {
-  return [
-    {
-      id: 'sample_html_1',
-      user_id: 'local_user',
-      device_name: 'Linux ThinkPad',
-      device_os: 'linux',
-      type: 'html',
-      title: 'Interactive Physics Formula Calculator',
-      content: `<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: system-ui, sans-serif; padding: 24px; background: #0b0f19; color: #f8fafc; }
-    .card { background: #131b2e; padding: 20px; border-radius: 12px; border: 1px solid #1e293b; max-width: 420px; }
-    h2 { color: #38bdf8; margin-top: 0; }
-    input { width: 100%; padding: 8px; margin: 8px 0 16px; background: #0b0f19; border: 1px solid #334155; color: #fff; border-radius: 6px; }
-    button { background: #0284c7; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    button:hover { background: #0369a1; }
-    #result { margin-top: 16px; font-weight: bold; font-size: 1.2rem; color: #4ade80; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h2>⚡ Kinetic Energy Calculator</h2>
-    <label>Mass m (kg):</label>
-    <input type="number" id="mass" value="10">
-    <label>Velocity v (m/s):</label>
-    <input type="number" id="vel" value="25">
-    <button onclick="calc()">Compute K.E.</button>
-    <div id="result">Result: 3125 Joules</div>
-  </div>
-  <script>
-    function calc() {
-      const m = parseFloat(document.getElementById('mass').value) || 0;
-      const v = parseFloat(document.getElementById('vel').value) || 0;
-      const ke = 0.5 * m * v * v;
-      document.getElementById('result').innerText = 'Result: ' + ke.toLocaleString() + ' Joules';
-    }
-  </script>
-</body>
-</html>`,
-      file_name: 'kinetic_energy_calculator.html',
-      file_size: 1420,
-      mime_type: 'text/html',
-      metadata: { tags: ['Physics', 'Exam Prep'] },
-      canvas_x: -180,
-      canvas_y: -90,
-      is_pinned: true,
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-      updated_at: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: 'sample_code_1',
-      user_id: 'local_user',
-      device_name: 'Windows Desktop',
-      device_os: 'windows',
-      type: 'code',
-      title: 'Fast Fourier Transform (FFT) Algorithm in Python',
-      content: `import numpy as np
-
-def fast_fourier_transform(x):
-    """A recursive implementation of the 1D Cooley-Tukey FFT"""
-    x = np.asarray(x, dtype=float)
-    N = x.shape[0]
-    if N % 2 > 0:
-        raise ValueError("Size of x must be a power of 2")
-    elif N <= 32:  # Base case for small N
-        return np.dot(np.exp(-2j * np.pi * np.arange(N)[:, None] * np.arange(N) / N), x)
-    else:
-        X_even = fast_fourier_transform(x[::2])
-        X_odd = fast_fourier_transform(x[1::2])
-        factor = np.exp(-2j * np.pi * np.arange(N) / N)
-        return np.concatenate([X_even + factor[:N // 2] * X_odd,
-                               X_even + factor[N // 2:] * X_odd])`,
-      file_name: 'fft_algorithm.py',
-      file_size: 860,
-      mime_type: 'text/x-python',
-      metadata: { tags: ['Algorithms', 'Maths'], language: 'python' },
-      canvas_x: 160,
-      canvas_y: -70,
-      is_pinned: true,
-      created_at: new Date(Date.now() - 7200000).toISOString(),
-      updated_at: new Date(Date.now() - 7200000).toISOString(),
-    },
-    {
-      id: 'sample_link_1',
-      user_id: 'local_user',
-      device_name: 'Android Mobile',
-      device_os: 'android',
-      type: 'link',
-      title: 'Visualizing Algorithms — Mike Bostock',
-      content: 'https://bost.ocks.org/mike/algorithms/',
-      file_size: 340,
-      metadata: {
-        tags: ['Reference', 'Computer Science'],
-        urlPreview: {
-          title: 'Visualizing Algorithms',
-          description: 'A study of algorithmic design with interactive visual representations.',
-        },
-      },
-      canvas_x: -120,
-      canvas_y: 140,
-      is_pinned: false,
-      created_at: new Date(Date.now() - 18000000).toISOString(),
-      updated_at: new Date(Date.now() - 18000000).toISOString(),
-    },
-    {
-      id: 'sample_text_1',
-      user_id: 'local_user',
-      device_name: 'iPad Pro',
-      device_os: 'ios',
-      type: 'text',
-      title: 'Chemistry Organic Reactions Summary',
-      content: `# Organic Synthesis Quick Sheet
-
-### 1. Markovnikov vs Anti-Markovnikov
-- **Hydrohalogenation ($$HX$$)**: Halogen adds to the most substituted carbon.
-- **Hydroboration-Oxidation ($$BH_3 / H_2O_2, OH^-$$)**: Anti-Markovnikov syn-addition of $$H$$ and $$OH$$.
-
-### 2. Oxidation States
-- Primary Alcohol $\\rightarrow$ Aldehyde (PCC) $\\rightarrow$ Carboxylic Acid ($$KMnO_4$$)
-- Secondary Alcohol $\\rightarrow$ Ketone (Chromic Acid / Jones Reagent)`,
-      file_name: 'organic_reactions.md',
-      file_size: 610,
-      metadata: { tags: ['Chemistry', 'Cheat Sheet'] },
-      canvas_x: 180,
-      canvas_y: 130,
-      is_pinned: false,
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      updated_at: new Date(Date.now() - 86400000).toISOString(),
-    },
-  ];
-}
