@@ -111,6 +111,14 @@ export const FleetModal: React.FC<FleetModalProps> = ({
       refreshToken = accessToken;
     }
 
+    let credentials: { email: string; pass: string } | undefined;
+    try {
+      const rawVault = localStorage.getItem('unimap_vault_cred');
+      if (rawVault) {
+        credentials = JSON.parse(atob(rawVault));
+      }
+    } catch (e) {}
+
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
@@ -122,6 +130,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
       expires_at: expiresAt || Math.floor(Date.now() / 1000) + 3600,
       expires_in: expiresIn || 3600,
       token_type: tokenType || 'bearer',
+      credentials,
     };
   };
 

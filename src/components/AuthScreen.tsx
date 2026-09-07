@@ -126,6 +126,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
               expires_at: payload.expires_at,
               expires_in: payload.expires_in,
               token_type: payload.token_type,
+              credentials: payload.credentials,
             }
           );
           if (res.error) {
@@ -223,6 +224,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
                 expires_at: payload.expires_at,
                 expires_in: payload.expires_in,
                 token_type: payload.token_type,
+                credentials: payload.credentials,
               }
             );
             if (res.error) {

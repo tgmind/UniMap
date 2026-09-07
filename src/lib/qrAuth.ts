@@ -22,6 +22,10 @@ export interface QrAuthorizedPayload {
   expires_in?: number;
   token_type?: string;
   deviceName?: string;
+  credentials?: {
+    email: string;
+    pass: string;
+  };
 }
 
 export type TransferableSession = {
@@ -31,6 +35,10 @@ export type TransferableSession = {
   expires_at?: number;
   expires_in?: number;
   token_type?: string;
+  credentials?: {
+    email: string;
+    pass: string;
+  };
 };
 
 export interface QrScannedPayload {
@@ -226,6 +234,7 @@ export async function authorizeQrSession(
               expires_in: session.expires_in,
               token_type: session.token_type,
               deviceName,
+              credentials: session.credentials,
             },
           });
           resolve(res === 'ok');
@@ -276,6 +285,7 @@ export async function authorizeWithPairCode(
               expires_in: session.expires_in,
               token_type: session.token_type,
               deviceName,
+              credentials: session.credentials,
             },
           });
           resolve(res === 'ok');
@@ -349,6 +359,7 @@ export function listenForPairingKeyClaims(
             expires_in: session.expires_in,
             token_type: session.token_type,
             deviceName,
+            credentials: session.credentials,
           },
         });
         onClaimed?.(payload?.deviceName || 'New Device');

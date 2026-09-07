@@ -23,7 +23,7 @@ import { useItems } from '../context/ItemContext';
 
 interface ItemCardProps {
   item: UniItem;
-  onOpenMedia?: (url: string, title: string) => void;
+  onOpenMedia?: (url: string, title: string, item?: UniItem) => void;
 }
 
 export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
@@ -31,6 +31,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
 
   const handleSyncNow = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -50,9 +52,19 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
     setTimeout(() => setCopied(false), 1600);
   };
 
-  const handleDownload = (e: React.MouseEvent) => {
+  const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    downloadItem(item);
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const success = await downloadItem(item);
+      if (success) {
+        setDownloaded(true);
+        setTimeout(() => setDownloaded(false), 2000);
+      }
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleRunHtml = (e: React.MouseEvent) => {
@@ -138,8 +150,27 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
           </span>
         </div>
 
-        {/* Pin & Delete icons */}
+        {/* Header Actions: Download, Pin & Delete */}
         <div className="flex items-center gap-1 shrink-0">
+          {(item.type === 'media' || item.file_url || item.type === 'html' || item.type === 'code') && (
+            <button
+              onClick={handleDownload}
+              title={item.type === 'html' ? 'Download HTML file' : 'Download media'}
+              className={`p-1 rounded-md transition-colors ${
+                downloaded
+                  ? 'text-emerald-500'
+                  : 'text-text-faint hover:text-[#2481CC] dark:hover:text-[#50A7EA]'
+              }`}
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2481CC]" />
+              ) : downloaded ? (
+                <Check className="w-3.5 h-3.5 text-emerald-500" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
           <button
             onClick={() => togglePin(item.id)}
             title={item.is_pinned ? 'Unpin message' : 'Pin message'}
@@ -270,7 +301,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
           <div className="space-y-2">
             {item.file_url ? (
               <div
-                onClick={() => onOpenMedia?.(item.file_url!, item.title)}
+                onClick={() => onOpenMedia?.(item.file_url!, item.title, item)}
                 className="rounded-xl overflow-hidden bg-black/5 dark:bg-black/20 border border-border/50 cursor-pointer group/media max-h-96 flex items-center justify-center relative shadow-2xs"
               >
                 <img
@@ -279,6 +310,33 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
                   loading="lazy"
                   className="w-full h-auto max-h-96 object-contain group-hover/media:scale-[1.01] transition-transform duration-200"
                 />
+
+                {/* Direct 1-Tap Media Download Overlay Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownload(e);
+                  }}
+                  title="Download media file directly"
+                  className="absolute top-2 left-2 px-2.5 py-1 rounded-md bg-black/70 hover:bg-black/90 backdrop-blur-xs text-[11px] text-white font-medium flex items-center gap-1.5 shadow-md transition-all active:scale-95 z-10 cursor-pointer border border-white/10"
+                >
+                  {isDownloading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                  ) : downloaded ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400 font-semibold">Saved</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </>
+                  )}
+                </button>
+
+                {/* File size & format badge */}
                 <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-[10px] text-white font-mono font-medium flex items-center gap-1 pointer-events-none shadow-xs">
                   <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                   <span>{item.file_size ? `${(item.file_size / 1024).toFixed(0)} KB WebP` : 'WebP Image'}</span>
@@ -309,37 +367,88 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
                 {item.title || item.file_name || 'Interactive Web App'}
               </p>
             </div>
-            <button
-              onClick={handleRunHtml}
-              className="w-full py-2 px-3 rounded-xl bg-[#2481CC] hover:bg-[#1E70B0] text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.98]"
-            >
-              <span>Launch App</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleRunHtml}
+                className="py-2 px-3 rounded-xl bg-[#2481CC] hover:bg-[#1E70B0] text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-[0.98]"
+              >
+                <span>Launch App</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleDownload}
+                className="py-2 px-3 rounded-xl bg-surface-elevated hover:bg-surface border border-border/80 text-text-main font-semibold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-[0.98]"
+              >
+                {isDownloading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2481CC]" />
+                    <span>Saving...</span>
+                  </>
+                ) : downloaded ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="text-emerald-500 font-semibold">Saved!</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5 text-[#2481CC]" />
+                    <span>Download HTML</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
       </div>
 
       {/* Bottom Action & Time Strip with Upload Status Indicator */}
       <div className="mt-2.5 pt-2 border-t border-border/20 flex items-center justify-between text-xs">
-        {/* 1-Tap Copy Action Button */}
-        <button
-          onClick={handleCopy}
-          title={copied ? 'Copied' : 'Copy message text'}
-          className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-[#2481CC] transition-colors font-medium px-2 py-0.5 rounded-md hover:bg-surface-elevated active:scale-95"
-        >
-          {copied ? (
-            <>
-              <Check className="w-3 h-3 text-emerald-500" />
-              <span className="text-emerald-500 font-semibold">Copied!</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3 h-3" />
-              <span>Copy Post</span>
-            </>
+        <div className="flex items-center gap-1.5">
+          {/* 1-Tap Copy Action Button */}
+          <button
+            onClick={handleCopy}
+            title={copied ? 'Copied' : 'Copy message text'}
+            className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-[#2481CC] transition-colors font-medium px-2 py-0.5 rounded-md hover:bg-surface-elevated active:scale-95"
+          >
+            {copied ? (
+              <>
+                <Check className="w-3 h-3 text-emerald-500" />
+                <span className="text-emerald-500 font-semibold">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3 h-3" />
+                <span>Copy Post</span>
+              </>
+            )}
+          </button>
+
+          {/* Direct Card Download Button */}
+          {(item.type === 'media' || item.file_url || item.type === 'html' || item.type === 'code') && (
+            <button
+              onClick={handleDownload}
+              title={item.type === 'html' ? 'Download HTML file' : 'Download media file'}
+              className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-[#2481CC] transition-colors font-medium px-2 py-0.5 rounded-md hover:bg-surface-elevated active:scale-95"
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin text-[#2481CC]" />
+                  <span className="text-[#2481CC] font-semibold">Saving...</span>
+                </>
+              ) : downloaded ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-500" />
+                  <span className="text-emerald-500 font-semibold">Downloaded!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3 h-3" />
+                  <span>{item.type === 'html' ? 'Download HTML' : 'Download'}</span>
+                </>
+              )}
+            </button>
           )}
-        </button>
+        </div>
 
         {/* Upload / Sync Status Indicator & Timestamp */}
         <div className="flex items-center gap-2">

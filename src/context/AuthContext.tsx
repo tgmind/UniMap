@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { ConnectedDevice, UserProfile } from '../types';
 import { getSupabaseClient, getSupabaseConfig, ensureClientAuth, resetSupabaseClient } from '../lib/supabase';
 import { localDb } from '../lib/db';
@@ -22,7 +22,12 @@ interface AuthContextType {
     accessToken: string,
     refreshToken?: string,
     remoteUser?: any,
-    sessionMeta?: { expires_at?: number; expires_in?: number; token_type?: string }
+    sessionMeta?: {
+      expires_at?: number;
+      expires_in?: number;
+      token_type?: string;
+      credentials?: { email: string; pass: string };
+    }
   ) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   revokeDevice: (deviceId: string) => Promise<void>;
@@ -36,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [devices, setDevices] = useState<ConnectedDevice[]>([]);
+  const isExplicitSignOutRef = useRef<boolean>(false);
 
   const deviceToken = getDeviceToken();
   const { isConfigured } = getSupabaseConfig();
@@ -65,21 +71,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             display_name: session.user.user_metadata?.display_name || session.user.email?.split('@')[0],
           };
         } else {
-          // Fallback: check stored session in localStorage
+          // Check if we can heal session from local vault credentials (e.g. after background rotation)
           try {
-            const raw = localStorage.getItem('unimap_auth_token');
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (parsed?.user?.id) {
-                activeUser = {
-                  id: parsed.user.id,
-                  email: parsed.user.email || '',
-                  display_name: parsed.user.user_metadata?.display_name || parsed.user.email?.split('@')[0] || 'User',
-                };
+            const rawVault = localStorage.getItem('unimap_vault_cred');
+            if (rawVault) {
+              const { email, pass } = JSON.parse(atob(rawVault));
+              if (email && pass) {
+                const { data: healData, error: healErr } = await client.auth.signInWithPassword({
+                  email: email.trim().toLowerCase(),
+                  password: pass,
+                });
+                if (!healErr && healData.user && healData.session) {
+                  ensureClientAuth(healData.session.access_token);
+                  activeUser = {
+                    id: healData.user.id,
+                    email: healData.user.email || '',
+                    display_name: healData.user.user_metadata?.display_name || healData.user.email?.split('@')[0],
+                  };
+                }
               }
             }
           } catch (e) {
-            console.warn('Fallback local auth read error:', e);
+            console.warn('Vault auto-heal error:', e);
+          }
+
+          if (!activeUser) {
+            // Fallback: check stored session in localStorage
+            try {
+              const raw = localStorage.getItem('unimap_auth_token');
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed?.user?.id) {
+                  activeUser = {
+                    id: parsed.user.id,
+                    email: parsed.user.email || '',
+                    display_name: parsed.user.user_metadata?.display_name || parsed.user.email?.split('@')[0] || 'User',
+                  };
+                }
+              }
+            } catch (e) {
+              console.warn('Fallback local auth read error:', e);
+            }
           }
         }
 
@@ -92,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Listen for auth state changes
         const { data: authListener } = client.auth.onAuthStateChange(async (event, session) => {
-          if (event === 'SIGNED_IN' && session?.user) {
+          if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
             ensureClientAuth(session.access_token);
             const u: UserProfile = {
               id: session.user.id,
@@ -103,8 +135,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await registerCurrentDeviceOnline(u.id);
             await fetchDevicesOnline(u.id);
           } else if (event === 'SIGNED_OUT') {
-            setUser(null);
-            setDevices([]);
+            if (isExplicitSignOutRef.current) {
+              setUser(null);
+              setDevices([]);
+            } else {
+              // Background token rotation loss or transient Gotrue glitch.
+              // Auto-heal from vault before booting user to login screen!
+              try {
+                const rawVault = localStorage.getItem('unimap_vault_cred');
+                if (rawVault) {
+                  const { email, pass } = JSON.parse(atob(rawVault));
+                  if (email && pass) {
+                    const { data: reloginData, error: reloginErr } = await client.auth.signInWithPassword({
+                      email: email.trim().toLowerCase(),
+                      password: pass,
+                    });
+                    if (!reloginErr && reloginData.session && reloginData.user) {
+                      ensureClientAuth(reloginData.session.access_token);
+                      const healedUser: UserProfile = {
+                        id: reloginData.user.id,
+                        email: reloginData.user.email || '',
+                        display_name: reloginData.user.user_metadata?.display_name || reloginData.user.email?.split('@')[0],
+                      };
+                      setUser(healedUser);
+                      return;
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn('Auto-heal during SIGNED_OUT error:', e);
+              }
+
+              setUser(null);
+              setDevices([]);
+            }
           }
         });
 
@@ -193,8 +257,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!client) {
       return { error: 'Cloud backend is initializing. Please try again in a moment.' };
     }
-    const { error } = await client.auth.signInWithPassword({ email, password: pass });
+    const cleanEmail = email.trim().toLowerCase();
+    const { error } = await client.auth.signInWithPassword({ email: cleanEmail, password: pass });
     if (error) return { error: error.message };
+
+    // Store in vault for seamless independent multi-device pairing & auto-healing
+    try {
+      localStorage.setItem('unimap_vault_cred', btoa(JSON.stringify({ email: cleanEmail, pass })));
+    } catch (e) {}
+
     return {};
   };
 
@@ -203,14 +274,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!client) {
       return { error: 'Cloud backend is initializing. Please try again in a moment.' };
     }
+    const cleanEmail = email.trim().toLowerCase();
     const { error } = await client.auth.signUp({
-      email,
+      email: cleanEmail,
       password: pass,
       options: {
-        data: { display_name: name || email.split('@')[0] },
+        data: { display_name: name || cleanEmail.split('@')[0] },
       },
     });
     if (error) return { error: error.message };
+
+    try {
+      localStorage.setItem('unimap_vault_cred', btoa(JSON.stringify({ email: cleanEmail, pass })));
+    } catch (e) {}
+
     return {};
   };
 
@@ -218,13 +295,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     accessToken: string,
     refreshToken?: string,
     remoteUser?: any,
-    sessionMeta?: { expires_at?: number; expires_in?: number; token_type?: string }
+    sessionMeta?: {
+      expires_at?: number;
+      expires_in?: number;
+      token_type?: string;
+      credentials?: { email: string; pass: string };
+    }
   ) => {
+    const client = getSupabaseClient();
+
+    // Priority 1: If credentials are provided via secure peer channel,
+    // directly signInWithPassword to obtain an INDEPENDENT SESSION!
+    if (client && sessionMeta?.credentials?.email && sessionMeta?.credentials?.pass) {
+      try {
+        const cleanEmail = sessionMeta.credentials.email.trim().toLowerCase();
+        const { data: directData, error: directError } = await client.auth.signInWithPassword({
+          email: cleanEmail,
+          password: sessionMeta.credentials.pass,
+        });
+
+        if (!directError && directData.user && directData.session) {
+          try {
+            localStorage.setItem(
+              'unimap_vault_cred',
+              btoa(JSON.stringify({ email: cleanEmail, pass: sessionMeta.credentials.pass }))
+            );
+          } catch (e) {}
+
+          const u: UserProfile = {
+            id: directData.user.id,
+            email: directData.user.email || '',
+            display_name:
+              directData.user.user_metadata?.display_name ||
+              directData.user.email?.split('@')[0] ||
+              'User',
+          };
+          ensureClientAuth(directData.session.access_token);
+          setUser(u);
+          await registerCurrentDeviceOnline(u.id);
+          await fetchDevicesOnline(u.id);
+          return {};
+        }
+      } catch (err) {
+        console.warn('Direct credential signin attempt failed, falling back to session hydration:', err);
+      }
+    }
+
     if (!accessToken || typeof accessToken !== 'string' || accessToken.trim() === '') {
       return { error: 'Valid access credentials were not received from authorizing device.' };
     }
 
-    const client = getSupabaseClient();
     const safeRefreshToken = refreshToken && refreshToken.trim().length > 0 ? refreshToken.trim() : accessToken;
 
     let authenticatedUser: UserProfile | null = null;
@@ -344,9 +464,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    isExplicitSignOutRef.current = true;
     const client = getSupabaseClient();
     if (client) {
-      await client.auth.signOut();
+      try {
+        await client.auth.signOut({ scope: 'local' });
+      } catch (e) {
+        console.warn('Local sign out error:', e);
+      }
     }
     resetSupabaseClient();
     try {
@@ -355,6 +480,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Error clearing localDb items on logout:', e);
     }
     localStorage.removeItem('unimap_auth_token');
+    localStorage.removeItem('unimap_vault_cred');
     localStorage.removeItem('unimap_guest_mode');
     setUser(null);
     setDevices([]);
