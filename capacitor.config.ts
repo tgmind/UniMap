@@ -18,8 +18,9 @@ const config: CapacitorConfig = {
   server: {
     // Production Netlify URL for live Over-The-Air updates
     // You can override this via CAPACITOR_SERVER_URL environment variable or modify directly
-    url: process.env.CAPACITOR_SERVER_URL || 'https://unimap-vault.netlify.app',
+    url: process.env.CAPACITOR_SERVER_URL || 'https://whitevault.netlify.app',
     cleartext: true,
+    androidScheme: 'https',
   },
   android: {
     allowMixedContent: true,
