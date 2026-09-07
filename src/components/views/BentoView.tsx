@@ -7,7 +7,7 @@ import { Sparkles, Plus, Pin, ChevronDown } from 'lucide-react';
 
 interface BentoViewProps {
   onOpenAddModal: () => void;
-  onOpenMedia: (url: string, title: string) => void;
+  onOpenMedia: (url: string, title: string, item?: UniItem) => void;
   isNavVisible?: boolean;
 }
 

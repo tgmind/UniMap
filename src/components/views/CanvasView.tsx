@@ -15,9 +15,10 @@ import {
   Sparkles,
   Plus,
 } from 'lucide-react';
+import { UniItem } from '../../types';
 
 interface CanvasViewProps {
-  onOpenMedia: (url: string, title: string) => void;
+  onOpenMedia: (url: string, title: string, item?: UniItem) => void;
   onOpenAddModal?: () => void;
   isNavVisible?: boolean;
   isHeaderVisible?: boolean;

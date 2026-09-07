@@ -5,7 +5,7 @@ import { Calendar } from 'lucide-react';
 import { UniItem } from '../../types';
 
 interface TimelineViewProps {
-  onOpenMedia: (url: string, title: string) => void;
+  onOpenMedia: (url: string, title: string, item?: UniItem) => void;
 }
 
 export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenMedia }) => {

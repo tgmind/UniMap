@@ -16,7 +16,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { usePwaInstall } from './lib/usePwaInstall';
-import { ViewMode } from './types';
+import { ViewMode, UniItem } from './types';
 
 const MainApp: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -134,7 +134,7 @@ const MainApp: React.FC = () => {
   }, [wakeChrome, hideChrome]);
 
   // Lightbox
-  const [lightboxData, setLightboxData] = useState<{ url: string; title: string } | null>(null);
+  const [lightboxData, setLightboxData] = useState<{ url: string; title: string; item?: UniItem } | null>(null);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -212,18 +212,18 @@ const MainApp: React.FC = () => {
         {viewMode === 'bento' && (
           <BentoView
             onOpenAddModal={() => setIsAddOpen(true)}
-            onOpenMedia={(url, title) => setLightboxData({ url, title })}
+            onOpenMedia={(url, title, item) => setLightboxData({ url, title, item })}
             isNavVisible={isBottomNavExpanded}
           />
         )}
         {viewMode === 'timeline' && (
           <TimelineView
-            onOpenMedia={(url, title) => setLightboxData({ url, title })}
+            onOpenMedia={(url, title, item) => setLightboxData({ url, title, item })}
           />
         )}
         {viewMode === 'canvas' && (
           <CanvasView
-            onOpenMedia={(url, title) => setLightboxData({ url, title })}
+            onOpenMedia={(url, title, item) => setLightboxData({ url, title, item })}
             onOpenAddModal={() => setIsAddOpen(true)}
             isNavVisible={isBottomNavExpanded}
             isHeaderVisible={isChromeVisible}
@@ -262,6 +262,7 @@ const MainApp: React.FC = () => {
         <MediaLightboxModal
           url={lightboxData.url}
           title={lightboxData.title}
+          item={lightboxData.item}
           onClose={() => setLightboxData(null)}
         />
       )}
