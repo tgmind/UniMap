@@ -205,7 +205,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
       });
       setScanError(null);
     } else {
-      setScanError('Recognized a QR code, but it was not an authorized UniMap login code.');
+      setScanError('Recognized a QR code, but it was not an authorized White Vault login code.');
     }
   };
 
@@ -708,7 +708,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                   </div>
                   <h3 className="text-sm font-bold text-text-main">Laptop Authorized!</h3>
                   <p className="text-xs text-text-muted max-w-xs mx-auto">
-                    Your computer is now securely logged in to your UniMap study vault.
+                    Your computer is now securely logged in to your White Vault study vault.
                   </p>
                 </div>
               )}
@@ -723,7 +723,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                   <div>
                     <h3 className="text-sm font-bold text-text-main">Authorize Laptop Sign-In?</h3>
                     <p className="text-xs text-text-muted mt-1">
-                      A computer is requesting to access your UniMap vault.
+                      A computer is requesting to access your White Vault.
                     </p>
                   </div>
 
@@ -932,7 +932,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                   <div>
                     <h3 className="text-sm font-bold text-text-main">Device Linked Successfully!</h3>
                     <p className="text-xs text-emerald-400 font-medium mt-0.5">
-                      {remoteDeviceClaimed} has connected to your UniMap vault
+                      {remoteDeviceClaimed} has connected to your White Vault
                     </p>
                     <p className="text-[11px] text-text-muted mt-2 max-w-xs mx-auto">
                       All your lecture notes, equations, and canvas cards are now synced in real-time.
@@ -1055,7 +1055,7 @@ export const FleetModal: React.FC<FleetModalProps> = ({
                           1
                         </span>
                         <span>
-                          Open <strong className="text-text-main">UniMap</strong> on the computer or phone you want to sign in to.
+                          Open <strong className="text-text-main">White Vault</strong> on the computer or phone you want to sign in to.
                         </span>
                       </div>
                       <div className="flex items-start gap-2.5 text-xs text-text-muted">

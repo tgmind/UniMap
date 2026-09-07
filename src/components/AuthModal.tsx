@@ -74,11 +74,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onOpenCon
         <div className="text-center mb-6">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-accent p-0.5 mx-auto mb-3 shadow-glow-sm">
             <div className="w-full h-full bg-background rounded-[14px] flex items-center justify-center">
-              <img src="/logo.svg" alt="UniMap" className="w-7 h-7" />
+              <img src="/logo.svg" alt="White Vault" className="w-7 h-7" />
             </div>
           </div>
           <h2 className="text-lg font-bold text-text-main">
-            {mode === 'signin' ? 'Sign In to UniMap' : mode === 'signup' ? 'Create UniMap Account' : 'QR Quick Connect'}
+            {mode === 'signin' ? 'Sign In to White Vault' : mode === 'signup' ? 'Create White Vault Account' : 'QR Quick Connect'}
           </h2>
           <p className="text-xs text-text-muted mt-0.5">
             Synchronize exam notes across Windows, Linux, Android & iPad
@@ -222,7 +222,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onOpenCon
               <QRCodeSVG value="unimap_quick_auth_nonce" size={170} />
             </div>
             <p className="text-[11px] text-text-muted">
-              Open UniMap on your mobile → Tap Fleet Hub → Tap Scan QR Code to authenticate this computer in 1 second.
+              Open White Vault on your mobile → Tap Fleet Hub → Tap Scan QR Code to authenticate this computer in 1 second.
             </p>
           </div>
         )}

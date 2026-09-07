@@ -197,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({
           if (onWakeChrome) onWakeChrome(6000);
           if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
         }}
-        className={`fixed top-0 left-0 right-0 z-40 w-full bg-transparent border-b border-transparent transition-all duration-400 ease-in-out ${
+        className={`fixed top-0 left-0 right-0 z-40 w-full pt-[env(safe-area-inset-top)] bg-transparent border-b border-transparent transition-all duration-400 ease-in-out ${
           isHeaderShown
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-full opacity-0 pointer-events-none'
@@ -214,7 +214,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <UniMapLogo size={32} />
             <span className="font-semibold text-base tracking-tight text-text-main hidden sm:inline">
-              UniMap
+              White Vault
             </span>
           </div>
 
@@ -336,7 +336,7 @@ export const Header: React.FC<HeaderProps> = ({
           {isInstallable && (
             <button
               onClick={promptInstall}
-              title="Install UniMap App on this device"
+              title="Install White Vault App on this device"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/15 hover:bg-accent/25 text-accent text-xs font-semibold border border-accent/30 shadow-xs transition-all active:scale-95"
             >
               <Download className="w-3.5 h-3.5" />
@@ -349,30 +349,31 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onOpenAddModal}
             className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-primary-text text-xs font-semibold shadow-sm transition-all active:scale-95"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New</span>
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Add Item</span>
           </button>
 
-          {/* User Account Menu */}
+          {/* User Account / Profile Menu */}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="w-8 h-8 rounded-xl bg-surface-elevated border border-border flex items-center justify-center text-text-main hover:border-border-strong transition-colors text-xs font-semibold"
+              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-surface-elevated border border-transparent hover:border-border transition-all active:scale-95"
+              aria-label="User account menu"
             >
-              {user?.display_name ? user.display_name.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5 text-text-muted" />}
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-xs shadow-xs">
+                {user?.display_name ? user.display_name.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
+              </div>
             </button>
 
+            {/* Dropdown Menu */}
             {showUserMenu && (
-              <div
-                className="absolute right-0 mt-2 w-60 rounded-2xl bg-surface border border-border p-2 shadow-xl z-50 animate-fade-in text-xs"
-                onClick={() => setShowUserMenu(false)}
-              >
+              <div className="absolute right-0 mt-2 w-56 p-1.5 rounded-2xl bg-surface border border-border shadow-xl shadow-black/10 z-50 animate-scale-up" onClick={() => setShowUserMenu(false)}>
                 <div className="px-3 py-2 border-b border-border/70">
                   <p className="font-semibold text-text-main text-break-word">
                     {user?.display_name || 'Scholar'}
                   </p>
                   <p className="text-[11px] text-text-muted font-mono text-break-word">
-                    {user?.email || 'scholar@unimap.cloud'}
+                    {user?.email || 'scholar@whitevault.cloud'}
                   </p>
                 </div>
 
@@ -415,7 +416,7 @@ export const Header: React.FC<HeaderProps> = ({
                       className="w-full text-left px-3 py-1.5 rounded-lg text-primary font-semibold hover:bg-primary/10 flex items-center gap-2"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>Install UniMap App</span>
+                      <span>Install White Vault App</span>
                     </button>
                   )}
                 </div>

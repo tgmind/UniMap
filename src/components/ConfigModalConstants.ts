@@ -1,5 +1,5 @@
 export const SUPABASE_SQL_SETUP = `-- ==========================================
--- UNIMAP COMPLETE DATABASE SCHEMA
+-- WHITE VAULT COMPLETE DATABASE SCHEMA
 -- Run in Supabase Dashboard -> SQL Editor
 -- ==========================================
 

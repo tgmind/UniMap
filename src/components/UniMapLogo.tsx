@@ -99,4 +99,5 @@ export const UniMapLogo: React.FC<UniMapLogoProps> = ({
     </svg>
   );
 };
-export default UniMapLogo;
+export const WhiteVaultLogo = UniMapLogo;
+export default WhiteVaultLogo;

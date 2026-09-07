@@ -263,7 +263,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
         <div className="flex items-center gap-2.5 cursor-pointer select-none">
           <UniMapLogo size={36} />
           <span className="font-semibold text-base tracking-tight text-text-main">
-            UniMap
+            White Vault
           </span>
         </div>
 
@@ -381,7 +381,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
                     </span>
                   </>
                 )}
-                {authMode === 'signin' && 'Sign In to UniMap'}
+                {authMode === 'signin' && 'Sign In to White Vault'}
                 {authMode === 'signup' && 'Create your Account'}
               </h2>
               <p className="text-xs text-text-muted mt-0.5">
@@ -586,7 +586,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
                       1
                     </span>
                     <span>
-                      Open <strong className="text-text-main">UniMap</strong> on your logged-in mobile device
+                      Open <strong className="text-text-main">White Vault</strong> on your logged-in mobile device
                     </span>
                   </div>
 
@@ -668,7 +668,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
                       1
                     </span>
                     <span>
-                      Open <strong className="text-text-main">UniMap</strong> on any device where your account is currently signed in.
+                      Open <strong className="text-text-main">White Vault</strong> on any device where your account is currently signed in.
                     </span>
                   </div>
 
@@ -765,7 +765,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
 
       {/* Footer */}
       <footer className="w-full border-t border-border/40 py-5 text-center text-xs text-text-faint">
-        UniMap • Universal Cross-Device Data Map
+        White Vault • Universal Cross-Device Data Map
       </footer>
     </div>
   );

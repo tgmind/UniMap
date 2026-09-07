@@ -59,14 +59,14 @@ export const PwaInstallPrompt: React.FC<PwaInstallPromptProps> = ({
         <div className="flex items-start gap-3.5">
           <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-[#2481CC] to-[#50A7EA] p-0.5 shadow-md shadow-[#2481CC]/25 flex items-center justify-center shrink-0">
             <div className="w-full h-full bg-white dark:bg-[#18222D] rounded-[14px] flex items-center justify-center">
-              <img src="/logo.svg" alt="UniMap" className="w-7 h-7" />
+              <img src="/logo.svg" alt="White Vault" className="w-7 h-7" />
             </div>
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-base text-slate-900 dark:text-white tracking-tight">
-                Install UniMap
+                Install White Vault
               </h3>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#2481CC]/10 text-[#2481CC] dark:bg-[#50A7EA]/20 dark:text-[#50A7EA] uppercase tracking-wider">
                 App

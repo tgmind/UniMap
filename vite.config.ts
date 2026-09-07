@@ -12,9 +12,9 @@ export default defineConfig({
       },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'logo.svg'],
       manifest: {
-        name: 'UniMap — Universal Cross-Device Data Map',
-        short_name: 'UniMap',
-        description: 'Universal cross-device knowledge vault and visual data map for exam study.',
+        name: 'White Vault — Universal Cross-Device Data Map',
+        short_name: 'White Vault',
+        description: 'Universal cross-device knowledge vault and visual data map for study and research.',
         theme_color: '#FFFFFF',
         background_color: '#FFFFFF',
         display: 'standalone',

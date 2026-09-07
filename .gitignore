@@ -27,3 +27,16 @@ dev-dist
 # Environment variables
 .env
 .env.production
+
+# Android build outputs & security files
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+*.apk
+*.aab
+*.jks
+*.keystore
+# Firebase Admin SDK & secrets
+*-firebase-adminsdk-*.json
+supabase/.temp/

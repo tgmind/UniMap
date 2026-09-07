@@ -142,7 +142,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
       <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-border/25">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="font-bold text-xs sm:text-[13px] text-[#E53935] dark:text-[#FF5252] truncate tracking-wide">
-            {item.device_name || 'UniMap Cloud Channel'}
+            {item.device_name || 'White Vault Cloud Channel'}
           </span>
           <span className="text-[10px] text-text-faint font-mono">•</span>
           <span className="text-[10px] text-text-faint uppercase font-mono tracking-wider">

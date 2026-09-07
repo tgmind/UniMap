@@ -135,3 +135,96 @@ on storage.objects for delete
 to authenticated
 using (bucket_id = 'user-media');
 
+-- ================================================================
+-- 8. Native Android Push Notification Tokens
+-- ================================================================
+create table if not exists public.user_push_tokens (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  fcm_token text not null,
+  platform text default 'android' not null,
+  device_name text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique(user_id, fcm_token)
+);
+
+create index if not exists idx_push_tokens_user_id on public.user_push_tokens (user_id);
+
+alter table public.user_push_tokens enable row level security;
+
+drop policy if exists "Users can view and manage own push tokens" on public.user_push_tokens;
+create policy "Users can view and manage own push tokens"
+on public.user_push_tokens for all
+using (auth.uid() = user_id);
+
+-- ================================================================
+-- 9. Notifications Table (Triggers FCM Edge Function Webhook)
+-- ================================================================
+create table if not exists public.notifications (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  title text not null,
+  body text not null,
+  data jsonb default '{}'::jsonb,
+  is_read boolean default false not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create index if not exists idx_notifications_user_id on public.notifications (user_id);
+
+alter table public.notifications enable row level security;
+
+drop policy if exists "Users can view and manage own notifications" on public.notifications;
+create policy "Users can view and manage own notifications"
+on public.notifications for all
+using (auth.uid() = user_id);
+
+-- Realtime publication for in-app notifications
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notifications'
+  ) then
+    alter publication supabase_realtime add table public.notifications;
+  end if;
+end $$;
+
+-- ================================================================
+-- 10. Native App Version Control Table
+-- ================================================================
+create table if not exists public.app_versions (
+  id uuid default gen_random_uuid() primary key,
+  platform text default 'android' not null,
+  latest_version text not null,            -- e.g. '1.1.0'
+  min_supported_version text not null,     -- e.g. '1.0.0'
+  apk_url text not null,                   -- Direct download link to new APK
+  title text default 'Critical Native Update Required',
+  release_notes text,
+  is_critical boolean default true not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.app_versions enable row level security;
+
+-- Public read access so native apps can verify version status before or after login
+drop policy if exists "Anyone can check app versions" on public.app_versions;
+create policy "Anyone can check app versions"
+on public.app_versions for select
+using (true);
+
+-- Seed initial 1.0.0 entry
+insert into public.app_versions (platform, latest_version, min_supported_version, apk_url, title, release_notes, is_critical)
+values (
+  'android',
+  '1.0.0',
+  '1.0.0',
+  'https://github.com/tgmind/UniMap/releases/latest',
+  'Welcome to UniMap Android',
+  'Initial native Android release with real-time sync, offline caching, and push notifications.',
+  false
+)
+on conflict do nothing;
+
+

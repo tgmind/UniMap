@@ -3,7 +3,7 @@ import { UniItem } from '../types';
 /**
  * Launches an HTML file or snippet directly in the browser with full native script and CSS execution
  */
-export function runHtmlInBrowser(content: string, title = 'UniMap HTML Document') {
+export function runHtmlInBrowser(content: string, title = 'White Vault HTML Document') {
   try {
     let fullHtml = content.trim();
     // If it's a snippet without doctype, wrap it nicely
@@ -28,7 +28,7 @@ export function runHtmlInBrowser(content: string, title = 'UniMap HTML Document'
     const blobUrl = URL.createObjectURL(blob);
     const win = window.open(blobUrl, '_blank');
     if (!win) {
-      alert('Popup was blocked by the browser. Please allow popups for UniMap to run HTML documents in new tabs.');
+      alert('Popup was blocked by the browser. Please allow popups for White Vault to run HTML documents in new tabs.');
     }
   } catch (err) {
     console.error('Failed to run HTML in browser:', err);
@@ -193,7 +193,7 @@ export async function downloadItem(item: UniItem): Promise<boolean> {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${item.title || 'UniMap HTML App'}</title>
+  <title>${item.title || 'White Vault HTML App'}</title>
 </head>
 <body>
 ${rawHtml}

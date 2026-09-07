@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ItemProvider } from './context/ItemContext';
 import { Header } from './components/Header';
@@ -15,11 +15,17 @@ import { MediaLightboxModal } from './components/MediaLightboxModal';
 import { AuthScreen } from './components/AuthScreen';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
+import { NativeUpdateModal } from './components/NativeUpdateModal';
 import { usePwaInstall } from './lib/usePwaInstall';
+import { initNativePlatform, updateNativeStatusBar } from './lib/nativePlatform';
+import { initPushNotifications, cleanupPushNotifications } from './lib/pushNotifications';
+import { checkNativeAppVersion, VersionCheckResult } from './lib/appVersionService';
 import { ViewMode, UniItem } from './types';
 
 const MainApp: React.FC = () => {
   const { user, isLoading } = useAuth();
+  const { theme } = useTheme();
+  const [versionCheck, setVersionCheck] = useState<VersionCheckResult | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('bento');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isStorageOpen, setIsStorageOpen] = useState(false);
@@ -27,6 +33,34 @@ const MainApp: React.FC = () => {
   const [fleetInitialTab, setFleetInitialTab] = useState<'devices' | 'qr_generate' | 'qr_scan'>('devices');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+  // Initialize native platform hardware and status bar
+  useEffect(() => {
+    initNativePlatform(theme === 'dark');
+  }, []);
+
+  // Update status bar when theme switches
+  useEffect(() => {
+    updateNativeStatusBar(theme === 'dark');
+  }, [theme]);
+
+  // Check for critical native APK updates on startup
+  useEffect(() => {
+    checkNativeAppVersion().then((result) => {
+      if (result.needsUpdate) {
+        setVersionCheck(result);
+      }
+    });
+  }, []);
+
+  // Register native FCM push notifications when user is authenticated
+  useEffect(() => {
+    if (user?.id) {
+      initPushNotifications(user.id);
+    } else {
+      cleanupPushNotifications();
+    }
+  }, [user?.id]);
 
   const handleOpenFleet = useCallback((tab?: 'devices' | 'qr_generate' | 'qr_scan') => {
     setFleetInitialTab(tab || 'devices');
@@ -161,10 +195,10 @@ const MainApp: React.FC = () => {
         <div className="flex flex-col items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-accent p-0.5 animate-pulse">
             <div className="w-full h-full bg-background rounded-[14px] flex items-center justify-center">
-              <img src="/logo.svg" alt="UniMap" className="w-7 h-7" />
+              <img src="/logo.svg" alt="White Vault" className="w-7 h-7" />
             </div>
           </div>
-          <p className="text-xs text-text-muted font-mono animate-pulse">Initializing UniMap Vault...</p>
+          <p className="text-xs text-text-muted font-mono animate-pulse">Initializing White Vault...</p>
         </div>
       </div>
     );
@@ -181,6 +215,15 @@ const MainApp: React.FC = () => {
           onInstall={promptInstall}
           onDismiss={dismissInstallPrompt}
         />
+        {versionCheck?.needsUpdate && (
+          <NativeUpdateModal
+            isOpen={versionCheck.needsUpdate}
+            isCritical={versionCheck.isCritical}
+            currentVersion={versionCheck.currentVersion}
+            versionInfo={versionCheck.info}
+            onDismiss={versionCheck.isCritical ? undefined : () => setVersionCheck(null)}
+          />
+        )}
       </>
     );
   }
@@ -201,12 +244,12 @@ const MainApp: React.FC = () => {
         onHideChrome={hideChrome}
       />
 
-      {/* Main Content Area: Edge-to-edge full screen for Canvas, padded container for Bento/Timeline */}
+      {/* Main Content Area: Edge-to-edge full screen for Canvas, safe-area padded container for Bento/Timeline */}
       <main
         className={
           viewMode === 'canvas'
             ? 'fixed inset-0 w-full h-full overflow-hidden'
-            : 'flex-1 w-full mx-auto pt-14 sm:pt-16 py-2 sm:py-4 pb-20 md:pb-8'
+            : 'flex-1 w-full mx-auto pt-[calc(3.5rem+env(safe-area-inset-top))] sm:pt-[calc(4rem+env(safe-area-inset-top))] py-2 sm:py-4 pb-20 md:pb-8'
         }
       >
         {viewMode === 'bento' && (
@@ -274,6 +317,17 @@ const MainApp: React.FC = () => {
         onInstall={promptInstall}
         onDismiss={dismissInstallPrompt}
       />
+
+      {/* Native APK Version Control Blocking Modal */}
+      {versionCheck?.needsUpdate && (
+        <NativeUpdateModal
+          isOpen={versionCheck.needsUpdate}
+          isCritical={versionCheck.isCritical}
+          currentVersion={versionCheck.currentVersion}
+          versionInfo={versionCheck.info}
+          onDismiss={versionCheck.isCritical ? undefined : () => setVersionCheck(null)}
+        />
+      )}
     </div>
   );
 };
