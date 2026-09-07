@@ -6,7 +6,7 @@ import {
   ActionPerformed,
 } from '@capacitor/push-notifications';
 import { getSupabaseClient } from './supabase';
-import { generateDefaultDeviceName } from './deviceDetector';
+import { generateDefaultDeviceName, getDeviceToken } from './deviceDetector';
 
 let isPushInitialized = false;
 let currentRegisteredToken: string | null = null;
@@ -120,6 +120,7 @@ export async function savePushTokenToSupabase(userId: string, fcmToken: string):
       {
         user_id: userId,
         fcm_token: fcmToken,
+        device_token: getDeviceToken(),
         platform: 'android',
         device_name: deviceName,
         updated_at: new Date().toISOString(),

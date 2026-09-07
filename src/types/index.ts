@@ -32,6 +32,9 @@ export interface UniItem {
     height?: number;
     color?: string;
     sync_status?: 'uploading' | 'synced' | 'local_only';
+    sender_device_token?: string;
+    sender_device_name?: string;
+    [key: string]: any;
   };
   canvas_x: number;
   canvas_y: number;

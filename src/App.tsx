@@ -16,6 +16,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { NativeUpdateModal } from './components/NativeUpdateModal';
+import { NotificationToast, ToastNotification } from './components/NotificationToast';
 import { usePwaInstall } from './lib/usePwaInstall';
 import { initNativePlatform, updateNativeStatusBar } from './lib/nativePlatform';
 import { initPushNotifications, cleanupPushNotifications } from './lib/pushNotifications';
@@ -33,6 +34,29 @@ const MainApp: React.FC = () => {
   const [fleetInitialTab, setFleetInitialTab] = useState<'devices' | 'qr_generate' | 'qr_scan'>('devices');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [activeToast, setActiveToast] = useState<ToastNotification | null>(null);
+
+  // Listen for real-time cross-device new card notifications
+  useEffect(() => {
+    const handleNewCardNotify = (e: any) => {
+      if (e.detail) {
+        setActiveToast(e.detail);
+      }
+    };
+
+    window.addEventListener('whitevault:new-card-notify', handleNewCardNotify);
+    return () => window.removeEventListener('whitevault:new-card-notify', handleNewCardNotify);
+  }, []);
+
+  // Gracefully request Web Notification permissions on web browsers for background alerts
+  useEffect(() => {
+    if (user && 'Notification' in window && Notification.permission === 'default') {
+      const timer = setTimeout(() => {
+        Notification.requestPermission().catch(() => {});
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
 
   // Initialize native platform hardware and status bar
   useEffect(() => {
@@ -328,6 +352,20 @@ const MainApp: React.FC = () => {
           onDismiss={versionCheck.isCritical ? undefined : () => setVersionCheck(null)}
         />
       )}
+
+      {/* Real-time Cross-Device New Card Toast Notification */}
+      <NotificationToast
+        notification={activeToast}
+        onDismiss={() => setActiveToast(null)}
+        onNavigateItem={(id) => {
+          const el = document.getElementById(`item-${id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-4', 'ring-emerald-500');
+            setTimeout(() => el.classList.remove('ring-4', 'ring-emerald-500'), 2500);
+          }
+        }}
+      />
     </div>
   );
 };

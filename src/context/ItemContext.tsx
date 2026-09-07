@@ -3,7 +3,7 @@ import { ItemType, StorageQuota, UniItem } from '../types';
 import { getSupabaseClient, ensureClientAuth } from '../lib/supabase';
 import { localDb } from '../lib/db';
 import { useAuth } from './AuthContext';
-import { detectDeviceOS, generateDefaultDeviceName } from '../lib/deviceDetector';
+import { detectDeviceOS, generateDefaultDeviceName, getDeviceToken } from '../lib/deviceDetector';
 import { generateUUID } from '../lib/uuid';
 import { compressAndEncodeMedia } from '../lib/mediaStorage';
 
@@ -85,10 +85,18 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const broadcastItemUpsert = (item: UniItem) => {
     if (channelRef.current) {
       try {
+        const itemWithSender: UniItem = {
+          ...item,
+          metadata: {
+            ...item.metadata,
+            sender_device_token: item.metadata?.sender_device_token || getDeviceToken(),
+            sender_device_name: item.metadata?.sender_device_name || item.device_name,
+          },
+        };
         channelRef.current.send({
           type: 'broadcast',
           event: 'item_upsert',
-          payload: item,
+          payload: itemWithSender,
         }).catch((err: any) => console.warn('Broadcast item_upsert warning:', err));
       } catch (e) {
         console.warn('Broadcast item_upsert error:', e);
@@ -307,6 +315,23 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         setItems((prev) => [effectiveItem, ...prev.filter((i) => i.id !== effectiveItem.id)]);
         await localDb.items.put(effectiveItem);
+
+        // Notify user if created on a different connected device
+        const myToken = getDeviceToken();
+        const senderToken = incoming.metadata?.sender_device_token;
+        if (!local && senderToken && senderToken !== myToken) {
+          window.dispatchEvent(
+            new CustomEvent('whitevault:new-card-notify', {
+              detail: {
+                id: incoming.id,
+                title: 'New Card added in White Vault account',
+                body: incoming.title || 'New card posted',
+                senderDevice: incoming.metadata?.sender_device_name || incoming.device_name || 'Connected Device',
+                itemId: incoming.id,
+              },
+            })
+          );
+        }
       })
       .on('broadcast', { event: 'item_delete' }, async ({ payload }) => {
         if (!payload?.id) return;
@@ -331,7 +356,25 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
             setItems((prev) => [effectiveItem, ...prev.filter((i) => i.id !== newItem.id)]);
             await localDb.items.put(effectiveItem);
-          } else if (payload.eventType === 'UPDATE') {
+
+            // Notify user if created on a different connected device
+            const myToken = getDeviceToken();
+            const senderToken = newItem.metadata?.sender_device_token;
+            if (!local && senderToken && senderToken !== myToken) {
+              window.dispatchEvent(
+                new CustomEvent('whitevault:new-card-notify', {
+                  detail: {
+                    id: newItem.id,
+                    title: 'New Card added in White Vault account',
+                    body: newItem.title || 'New card posted',
+                    senderDevice: newItem.metadata?.sender_device_name || newItem.device_name || 'Connected Device',
+                    itemId: newItem.id,
+                  },
+                })
+              );
+            }
+          }
+ else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as UniItem;
             const local = await localDb.items.get(updated.id);
             const effectiveItem: UniItem = {
@@ -498,6 +541,8 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
       metadata: {
         tags: input.tags || ['Study'],
         sync_status: syncStatus,
+        sender_device_token: getDeviceToken(),
+        sender_device_name: currentDevice,
         ...mediaMeta,
       },
       canvas_x: input.canvasX ?? (Math.random() * 400 - 200),
@@ -534,6 +579,8 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           metadata: {
             ...newItem.metadata,
             sync_status: 'synced',
+            sender_device_token: getDeviceToken(),
+            sender_device_name: newItem.device_name,
             has_local_media: Boolean(newItem.file_url && newItem.file_url.startsWith('data:')),
           },
           canvas_x: newItem.canvas_x,

@@ -206,7 +206,7 @@ serve(async (req: Request) => {
     // Lookup user's registered FCM tokens
     const { data: tokens, error: tokensError } = await supabaseAdmin
       .from('user_push_tokens')
-      .select('id, fcm_token, platform')
+      .select('id, fcm_token, platform, device_token')
       .eq('user_id', targetUserId);
 
     if (tokensError) {
@@ -229,6 +229,7 @@ serve(async (req: Request) => {
 
     const sendResults: Array<{ token: string; status: string; error?: string }> = [];
     const tokensToDelete: string[] = [];
+    const senderDeviceToken = rawData.sender_device_token;
 
     // Ensure all data attributes are string values as required by FCM specification
     const stringifiedData: Record<string, string> = {};
@@ -236,8 +237,13 @@ serve(async (req: Request) => {
       stringifiedData[key] = typeof value === 'string' ? value : JSON.stringify(value);
     }
 
-    // Dispatch notification to each registered device
+    // Dispatch notification to each registered device (excluding sender)
     for (const item of tokens) {
+      // Exclude the device that posted the card!
+      if (senderDeviceToken && item.device_token && item.device_token === senderDeviceToken) {
+        console.log(`[fcm-push] Skipping push notification for sender device: ${senderDeviceToken}`);
+        continue;
+      }
       const messageBody = {
         message: {
           token: item.fcm_token,
