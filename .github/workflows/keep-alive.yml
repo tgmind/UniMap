@@ -1,0 +1,36 @@
+name: Supabase Free Tier Keep-Alive
+
+on:
+  schedule:
+    # Runs every 4 days at 06:00 UTC (Supabase pauses free tier after 7 days of inactivity)
+    - cron: '0 6 */4 * *'
+  workflow_dispatch: # Allows 1-click manual trigger from GitHub Actions tab
+
+jobs:
+  ping-supabase:
+    name: Ping Supabase Database
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Database Endpoint
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error ::VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY secret is missing!"
+            echo "Please add them in: Repository Settings -> Secrets and variables -> Actions"
+            exit 1
+          fi
+
+          echo "Pinging Supabase database to keep project active 24/7..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X GET "${SUPABASE_URL}/rest/v1/items?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+
+          echo "Response HTTP Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 500 ]; then
+            echo "✅ Supabase successfully pinged! Free tier will stay awake permanently."
+          else
+            echo "⚠️ Unexpected status code: $HTTP_STATUS"
+            exit 1
+          fi
