@@ -43,17 +43,9 @@ export function ensureClientAuth(token?: string | null): SupabaseClient | null {
   const effectiveToken = token || getStoredAuthToken();
   if (effectiveToken) {
     try {
-      const anyClient = client as any;
-      if (anyClient.rest?.headers) {
-        if (typeof anyClient.rest.headers.set === 'function') {
-          anyClient.rest.headers.set('Authorization', `Bearer ${effectiveToken}`);
-        } else {
-          anyClient.rest.headers['Authorization'] = `Bearer ${effectiveToken}`;
-        }
-      }
       client.realtime.setAuth(effectiveToken);
     } catch (e) {
-      console.warn('Error setting client auth header:', e);
+      console.warn('Error setting client realtime auth:', e);
     }
   }
   return client;
@@ -64,21 +56,12 @@ export function getSupabaseClient(): SupabaseClient | null {
   if (!isConfigured) return null;
 
   if (!supabaseInstance) {
-    const storedToken = getStoredAuthToken();
-    const globalHeaders: Record<string, string> = {};
-    if (storedToken) {
-      globalHeaders['Authorization'] = `Bearer ${storedToken}`;
-    }
-
     supabaseInstance = createClient(url, key, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storageKey: 'unimap_auth_token',
-      },
-      global: {
-        headers: globalHeaders,
       },
       realtime: {
         params: {
@@ -87,6 +70,7 @@ export function getSupabaseClient(): SupabaseClient | null {
       },
     });
 
+    const storedToken = getStoredAuthToken();
     if (storedToken) {
       try {
         supabaseInstance.realtime.setAuth(storedToken);

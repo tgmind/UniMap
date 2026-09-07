@@ -27,9 +27,21 @@ interface ItemCardProps {
 }
 
 export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
-  const { deleteItem, togglePin } = useItems();
+  const { deleteItem, togglePin, retrySyncItem } = useItems();
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncNow = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await retrySyncItem(item.id);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -344,10 +356,22 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onOpenMedia }) => {
             </span>
           )}
           {(item.metadata?.sync_status === 'local_only' || !item.metadata?.sync_status) && (
-            <span className="text-primary font-medium flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 border border-primary/20" title="Stored on Device">
-              <HardDrive className="w-3 h-3 text-primary shrink-0" />
-              <span>Saved</span>
-            </span>
+            isSyncing ? (
+              <span className="text-primary font-medium flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 border border-primary/20 animate-pulse" title="Syncing with cloud...">
+                <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                <span>Syncing...</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSyncNow}
+                className="text-primary font-medium flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all active:scale-95 cursor-pointer"
+                title="Saved locally. Tap to sync to cloud now"
+              >
+                <HardDrive className="w-3 h-3 text-primary shrink-0" />
+                <span>Saved · Sync</span>
+              </button>
+            )
           )}
 
           <span className="text-[11px] text-text-faint font-mono select-none">

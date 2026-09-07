@@ -21,6 +21,37 @@ interface AddItemInput {
   canvasY?: number;
 }
 
+/**
+ * Bulletproof detector for previously seeded mock/sample study items.
+ * Checks id, user_id, title, content, and filenames to guarantee they NEVER appear on any device.
+ */
+export function isMockOrSampleItem(item: any): boolean {
+  if (!item) return false;
+  const id = String(item.id || '');
+  if (id.startsWith('sample_')) return true;
+  if (item.user_id === 'local_user') return true;
+
+  const title = String(item.title || '').toLowerCase();
+  const content = String(item.content || '').toLowerCase();
+  const fileName = String(item.file_name || '').toLowerCase();
+
+  return (
+    title.includes('kinetic energy') ||
+    title.includes('fast fourier transform') ||
+    title.includes('fft algorithm') ||
+    title.includes('visualizing algorithm') ||
+    title.includes('chemistry organic reaction') ||
+    title.includes('organic synthesis quick sheet') ||
+    fileName.includes('kinetic_energy') ||
+    fileName.includes('fft_algorithm') ||
+    fileName.includes('organic_reactions') ||
+    content.includes('kinetic energy calculator') ||
+    content.includes('cooley-tukey fft') ||
+    content.includes('bost.ocks.org/mike/algorithms') ||
+    content.includes('markovnikov vs anti-markovnikov')
+  );
+}
+
 interface ItemContextType {
   items: UniItem[];
   isLoading: boolean;
@@ -36,6 +67,7 @@ interface ItemContextType {
   togglePin: (id: string) => Promise<void>;
   updateCanvasPosition: (id: string, x: number, y: number) => Promise<void>;
   refreshItems: () => Promise<void>;
+  retrySyncItem: (id: string) => Promise<boolean>;
 }
 
 const ItemContext = createContext<ItemContextType | undefined>(undefined);
@@ -86,14 +118,25 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Immediately purge any fake sample data or items from other users so they never spoil cache
         const garbage = localItems.filter(
-          (i) => i.id.startsWith('sample_') || i.user_id === 'local_user' || (user && i.user_id !== user.id)
+          (i) => isMockOrSampleItem(i) || (user && i.user_id !== user.id)
         );
         if (garbage.length > 0) {
-          await localDb.items.bulkDelete(garbage.map((g) => g.id));
+          const garbageIds = garbage.map((g) => g.id);
+          await localDb.items.bulkDelete(garbageIds);
+
+          // Also purge from Supabase cloud if user is logged in
+          const client = getSupabaseClient();
+          if (client && user) {
+            try {
+              await client.from('items').delete().in('id', garbageIds);
+            } catch (e) {
+              console.warn('Error pruning mock items from cloud in loadLocal:', e);
+            }
+          }
         }
 
         const validLocal = localItems.filter(
-          (i) => !i.id.startsWith('sample_') && i.user_id !== 'local_user' && (!user || i.user_id === user.id)
+          (i) => !isMockOrSampleItem(i) && (!user || i.user_id === user.id)
         );
         setItems(validLocal);
       } catch (err) {
@@ -118,24 +161,32 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .order('created_at', { ascending: false });
 
       if (!error && data) {
+        // Delete any mock items from Supabase cloud if they were synced previously
+        const cloudMocks = data.filter((c: any) => isMockOrSampleItem(c));
+        if (cloudMocks.length > 0) {
+          const mockIds = cloudMocks.map((c: any) => c.id);
+          await client.from('items').delete().in('id', mockIds);
+        }
+
+        const cleanCloudData = data.filter((c: any) => !isMockOrSampleItem(c));
         const localExisting = await localDb.items.toArray();
         const localMap = new Map(localExisting.map((i) => [i.id, i]));
-        const cloudIds = new Set(data.map((c) => c.id));
+        const cloudIds = new Set(cleanCloudData.map((c: any) => c.id));
 
         // Retain only current user's valid local items that haven't synced to cloud yet
         const localOnly = localExisting.filter(
-          (local) => local.user_id === user.id && !local.id.startsWith('sample_') && !cloudIds.has(local.id)
+          (local) => local.user_id === user.id && !isMockOrSampleItem(local) && !cloudIds.has(local.id)
         );
 
         // Clean up any stale or sample items
         const staleItems = localExisting.filter(
-          (local) => local.id.startsWith('sample_') || local.user_id === 'local_user' || (local.user_id !== user.id && !cloudIds.has(local.id))
+          (local) => isMockOrSampleItem(local) || (local.user_id !== user.id && !cloudIds.has(local.id))
         );
         if (staleItems.length > 0) {
           await localDb.items.bulkDelete(staleItems.map((i) => i.id));
         }
 
-        const mergedCloud: UniItem[] = data.map((cloudItem: UniItem) => {
+        const mergedCloud: UniItem[] = cleanCloudData.map((cloudItem: UniItem) => {
           const local = localMap.get(cloudItem.id);
           const effectiveFileUrl =
             local?.file_url && (!cloudItem.file_url || cloudItem.file_url.startsWith('blob:'))
@@ -174,7 +225,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const pending = allLocal.filter(
         (it) =>
           it.user_id === user.id &&
-          !it.id.startsWith('sample_') &&
+          !isMockOrSampleItem(it) &&
           (it.metadata?.sync_status === 'local_only' || !it.metadata?.sync_status)
       );
 
@@ -189,11 +240,15 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           type: item.type,
           title: item.title,
           content: item.content,
-          file_url: item.file_url,
+          file_url: (item.file_url && item.file_url.startsWith('data:')) ? null : item.file_url,
           file_name: item.file_name,
           file_size: item.file_size,
           mime_type: item.mime_type,
-          metadata: { ...item.metadata, sync_status: 'synced' },
+          metadata: {
+            ...item.metadata,
+            sync_status: 'synced',
+            has_local_media: Boolean(item.file_url && item.file_url.startsWith('data:')),
+          },
           canvas_x: item.canvas_x,
           canvas_y: item.canvas_y,
           is_pinned: item.is_pinned,
@@ -202,12 +257,6 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
 
         let { error } = await client.from('items').upsert(payload);
-        if (error && item.file_url && item.file_url.startsWith('data:')) {
-          payload.file_url = null;
-          payload.metadata = { ...payload.metadata, has_local_media: true };
-          const retry = await client.from('items').upsert(payload);
-          error = retry.error;
-        }
 
         if (!error) {
           const syncedItem: UniItem = {
@@ -470,7 +519,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Sync to Supabase Online database if connected
     if (client && user) {
       try {
-        const { error } = await client.from('items').insert({
+        const dbPayload: any = {
           id: newItem.id,
           user_id: user.id,
           device_name: newItem.device_name,
@@ -478,17 +527,31 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           type: newItem.type,
           title: newItem.title,
           content: newItem.content,
-          file_url: newItem.file_url,
+          file_url: (newItem.file_url && newItem.file_url.startsWith('data:')) ? null : newItem.file_url,
           file_name: newItem.file_name,
           file_size: newItem.file_size,
           mime_type: newItem.mime_type,
-          metadata: { ...newItem.metadata, sync_status: 'synced' },
+          metadata: {
+            ...newItem.metadata,
+            sync_status: 'synced',
+            has_local_media: Boolean(newItem.file_url && newItem.file_url.startsWith('data:')),
+          },
           canvas_x: newItem.canvas_x,
           canvas_y: newItem.canvas_y,
           is_pinned: newItem.is_pinned,
           created_at: newItem.created_at,
           updated_at: newItem.updated_at,
-        });
+        };
+
+        let { error } = await client.from('items').insert(dbPayload);
+
+        // Retry once after 250ms in case of transient network hiccup
+        if (error) {
+          console.warn('Initial insert attempt error, retrying in 250ms:', error.message);
+          await new Promise((r) => setTimeout(r, 250));
+          const retry = await client.from('items').insert(dbPayload);
+          error = retry.error;
+        }
 
         if (!error) {
           const syncedItem: UniItem = {
@@ -500,52 +563,12 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           broadcastItemUpsert(syncedItem);
         } else {
           console.warn('Supabase DB sync note:', error.message);
-          // If insert failed due to large base64 payload, retry without cloud file_url
-          if (newItem.file_url && newItem.file_url.startsWith('data:')) {
-            const { error: retryError } = await client.from('items').insert({
-              id: newItem.id,
-              user_id: user.id,
-              device_name: newItem.device_name,
-              device_os: newItem.device_os,
-              type: newItem.type,
-              title: newItem.title,
-              content: newItem.content,
-              file_url: null,
-              file_name: newItem.file_name,
-              file_size: newItem.file_size,
-              mime_type: newItem.mime_type,
-              metadata: { ...newItem.metadata, sync_status: 'synced', has_local_media: true },
-              canvas_x: newItem.canvas_x,
-              canvas_y: newItem.canvas_y,
-              is_pinned: newItem.is_pinned,
-              created_at: newItem.created_at,
-              updated_at: newItem.updated_at,
-            });
-
-            if (!retryError) {
-              const syncedItem: UniItem = {
-                ...newItem,
-                metadata: { ...newItem.metadata, sync_status: 'synced' as const },
-              };
-              await localDb.items.put(syncedItem);
-              setItems((prev) => prev.map((it) => (it.id === newItem.id ? syncedItem : it)));
-              broadcastItemUpsert(syncedItem);
-            } else {
-              const localOnlyItem: UniItem = {
-                ...newItem,
-                metadata: { ...newItem.metadata, sync_status: 'local_only' as const },
-              };
-              await localDb.items.put(localOnlyItem);
-              setItems((prev) => prev.map((it) => (it.id === newItem.id ? localOnlyItem : it)));
-            }
-          } else {
-            const localOnlyItem: UniItem = {
-              ...newItem,
-              metadata: { ...newItem.metadata, sync_status: 'local_only' as const },
-            };
-            await localDb.items.put(localOnlyItem);
-            setItems((prev) => prev.map((it) => (it.id === newItem.id ? localOnlyItem : it)));
-          }
+          const localOnlyItem: UniItem = {
+            ...newItem,
+            metadata: { ...newItem.metadata, sync_status: 'local_only' as const },
+          };
+          await localDb.items.put(localOnlyItem);
+          setItems((prev) => prev.map((it) => (it.id === newItem.id ? localOnlyItem : it)));
         }
       } catch (err) {
         console.error('Supabase insert error:', err);
@@ -626,13 +649,84 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const retrySyncItem = async (id: string): Promise<boolean> => {
+    if (!user) return false;
+    const client = ensureClientAuth();
+    if (!client) return false;
+
+    const target = await localDb.items.get(id);
+    if (!target) return false;
+
+    try {
+      const uploadingItem: UniItem = {
+        ...target,
+        metadata: { ...target.metadata, sync_status: 'uploading' as const },
+      };
+      setItems((prev) => prev.map((it) => (it.id === id ? uploadingItem : it)));
+
+      const dbPayload: any = {
+        id: target.id,
+        user_id: user.id,
+        device_name: target.device_name,
+        device_os: target.device_os,
+        type: target.type,
+        title: target.title,
+        content: target.content,
+        file_url: (target.file_url && target.file_url.startsWith('data:')) ? null : target.file_url,
+        file_name: target.file_name,
+        file_size: target.file_size,
+        mime_type: target.mime_type,
+        metadata: {
+          ...target.metadata,
+          sync_status: 'synced',
+          has_local_media: Boolean(target.file_url && target.file_url.startsWith('data:')),
+        },
+        canvas_x: target.canvas_x,
+        canvas_y: target.canvas_y,
+        is_pinned: target.is_pinned,
+        created_at: target.created_at,
+        updated_at: target.updated_at || new Date().toISOString(),
+      };
+
+      const { error } = await client.from('items').upsert(dbPayload);
+      if (!error) {
+        const syncedItem: UniItem = {
+          ...target,
+          metadata: { ...target.metadata, sync_status: 'synced' as const },
+        };
+        await localDb.items.put(syncedItem);
+        setItems((prev) => prev.map((it) => (it.id === id ? syncedItem : it)));
+        broadcastItemUpsert(syncedItem);
+        return true;
+      } else {
+        console.warn('Manual sync retry failed:', error.message);
+        const failedItem: UniItem = {
+          ...target,
+          metadata: { ...target.metadata, sync_status: 'local_only' as const },
+        };
+        await localDb.items.put(failedItem);
+        setItems((prev) => prev.map((it) => (it.id === id ? failedItem : it)));
+        return false;
+      }
+    } catch (err) {
+      console.warn('Manual sync retry exception:', err);
+      const failedItem: UniItem = {
+        ...target,
+        metadata: { ...target.metadata, sync_status: 'local_only' as const },
+      };
+      await localDb.items.put(failedItem);
+      setItems((prev) => prev.map((it) => (it.id === id ? failedItem : it)));
+      return false;
+    }
+  };
+
   const refreshItems = async () => {
     if (user) {
       await fetchOnline();
       await flushPendingSync();
     } else {
       const local = await localDb.items.orderBy('created_at').reverse().toArray();
-      setItems(local.filter((i) => !i.id.startsWith('sample_') && i.user_id !== 'local_user'));
+      setItems(local.filter((i) => !isMockOrSampleItem(i)));
     }
   };
 
@@ -653,6 +747,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
         togglePin,
         updateCanvasPosition,
         refreshItems,
+        retrySyncItem,
       }}
     >
       {children}
