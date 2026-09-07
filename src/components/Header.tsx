@@ -20,6 +20,7 @@ import { useItems } from '../context/ItemContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { usePwaInstall } from '../lib/usePwaInstall';
+import { Capacitor } from '@capacitor/core';
 import { UniMapLogo } from './UniMapLogo';
 
 interface HeaderProps {
@@ -30,6 +31,7 @@ interface HeaderProps {
   onOpenFleetModal: (tab?: 'devices' | 'qr_generate' | 'qr_scan') => void;
   onOpenAuthModal: () => void;
   onOpenConfigModal: () => void;
+  onOpenDownloadModal?: () => void;
   isChromeVisible?: boolean;
   onWakeChrome?: (delayMs?: number) => void;
   onHideChrome?: () => void;
@@ -43,10 +45,12 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenFleetModal,
   onOpenAuthModal,
   onOpenConfigModal,
+  onOpenDownloadModal,
   isChromeVisible,
   onWakeChrome,
   onHideChrome,
 }) => {
+  const isNative = Capacitor.isNativePlatform();
   const { searchQuery, setSearchQuery, storageQuota } = useItems();
   const { user, signOut, devices } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -332,15 +336,16 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* Install PWA Button */}
-          {isInstallable && (
+          {/* Download Native Android App Button */}
+          {!isNative && onOpenDownloadModal && (
             <button
-              onClick={promptInstall}
-              title="Install White Vault App on this device"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/15 hover:bg-accent/25 text-accent text-xs font-semibold border border-accent/30 shadow-xs transition-all active:scale-95"
+              onClick={onOpenDownloadModal}
+              title="Download White Vault Android App (.APK)"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-semibold border border-emerald-500/30 shadow-xs transition-all active:scale-95 cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Install App</span>
+              <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="hidden sm:inline">Get Android App</span>
+              <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-mono font-bold">APK</span>
             </button>
           )}
 
@@ -410,13 +415,16 @@ export const Header: React.FC<HeaderProps> = ({
                     <span>Backend Config</span>
                   </button>
 
-                  {isInstallable && (
+                  {!isNative && onOpenDownloadModal && (
                     <button
-                      onClick={promptInstall}
-                      className="w-full text-left px-3 py-1.5 rounded-lg text-primary font-semibold hover:bg-primary/10 flex items-center gap-2"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        onOpenDownloadModal();
+                      }}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 font-semibold hover:bg-emerald-500/10 flex items-center gap-2 cursor-pointer"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>Install White Vault App</span>
+                      <span>Download Android App (.APK)</span>
                     </button>
                   )}
                 </div>

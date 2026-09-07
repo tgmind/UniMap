@@ -20,7 +20,9 @@ import {
   Sparkles,
   Moon,
   Sun,
+  Download,
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
@@ -36,9 +38,12 @@ import {
 } from '../lib/qrAuth';
 import { detectBrowser, detectDeviceOS, generateDefaultDeviceName } from '../lib/deviceDetector';
 
-interface AuthScreenProps {}
+interface AuthScreenProps {
+  onOpenDownloadModal?: () => void;
+}
 
-export const AuthScreen: React.FC<AuthScreenProps> = () => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onOpenDownloadModal }) => {
+  const isNative = Capacitor.isNativePlatform();
   const { signIn, signUp, signInWithSession } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -267,24 +272,38 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
           </span>
         </div>
 
-        {/* Theme Toggle */}
-        <button
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to Light Mode (Editorial Canvas)' : 'Switch to Dark Mode (Grey)'}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border text-xs font-medium text-text-muted hover:text-text-main transition-colors group"
-        >
-          {theme === 'dark' ? (
-            <>
-              <Moon className="w-3.5 h-3.5 text-accent transition-transform group-hover:scale-110" />
-              <span className="hidden sm:inline">Dark Mode</span>
-            </>
-          ) : (
-            <>
-              <Sun className="w-3.5 h-3.5 text-amber-500 transition-transform group-hover:scale-110" />
-              <span className="hidden sm:inline">Editorial Canvas</span>
-            </>
+        <div className="flex items-center gap-2.5">
+          {!isNative && onOpenDownloadModal && (
+            <button
+              onClick={onOpenDownloadModal}
+              title="Download White Vault Android App (.APK)"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-semibold border border-emerald-500/30 shadow-xs transition-all active:scale-95 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="hidden sm:inline">Get Android App</span>
+              <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-mono font-bold">APK</span>
+            </button>
           )}
-        </button>
+
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to Light Mode (Editorial Canvas)' : 'Switch to Dark Mode (Grey)'}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border text-xs font-medium text-text-muted hover:text-text-main transition-colors group"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Moon className="w-3.5 h-3.5 text-accent transition-transform group-hover:scale-110" />
+                <span className="hidden sm:inline">Dark Mode</span>
+              </>
+            ) : (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-500 transition-transform group-hover:scale-110" />
+                <span className="hidden sm:inline">Editorial Canvas</span>
+              </>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Main Grid */}
@@ -301,6 +320,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = () => {
             <p className="text-sm sm:text-base text-text-muted max-w-lg leading-relaxed pt-1">
               Synchronize lecture notes, textbook equations, code snippets, bookmarks, and interactive HTML files in real time across Windows, Linux, Android tablets, and mobile phones.
             </p>
+
+            {!isNative && onOpenDownloadModal && (
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={onOpenDownloadModal}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-semibold text-xs shadow-md shadow-emerald-600/25 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Download className="w-4 h-4 stroke-[2.5]" />
+                  <span>Download Android App (.APK)</span>
+                </button>
+                <span className="text-[11px] text-text-faint font-mono">v1.0.0 • 4.6 MB • Zero Play Store hassle</span>
+              </div>
+            )}
           </div>
 
           {/* Clean 4-Grid Highlights */}

@@ -16,6 +16,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { NativeUpdateModal } from './components/NativeUpdateModal';
+import { DownloadAppModal } from './components/DownloadAppModal';
 import { NotificationToast, ToastNotification } from './components/NotificationToast';
 import { usePwaInstall } from './lib/usePwaInstall';
 import { initNativePlatform, updateNativeStatusBar } from './lib/nativePlatform';
@@ -34,6 +35,7 @@ const MainApp: React.FC = () => {
   const [fleetInitialTab, setFleetInitialTab] = useState<'devices' | 'qr_generate' | 'qr_scan'>('devices');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [activeToast, setActiveToast] = useState<ToastNotification | null>(null);
 
   // Listen for real-time cross-device new card notifications
@@ -232,12 +234,16 @@ const MainApp: React.FC = () => {
   if (!user) {
     return (
       <>
-        <AuthScreen />
+        <AuthScreen onOpenDownloadModal={() => setIsDownloadOpen(true)} />
         <PwaInstallPrompt
           isOpen={showInstallPrompt}
           isIOS={isIOS}
           onInstall={promptInstall}
           onDismiss={dismissInstallPrompt}
+        />
+        <DownloadAppModal
+          isOpen={isDownloadOpen}
+          onClose={() => setIsDownloadOpen(false)}
         />
         {versionCheck?.needsUpdate && (
           <NativeUpdateModal
@@ -263,6 +269,7 @@ const MainApp: React.FC = () => {
         onOpenFleetModal={handleOpenFleet}
         onOpenAuthModal={() => setIsAuthOpen(true)}
         onOpenConfigModal={() => setIsConfigOpen(true)}
+        onOpenDownloadModal={() => setIsDownloadOpen(true)}
         isChromeVisible={isChromeVisible}
         onWakeChrome={wakeChrome}
         onHideChrome={hideChrome}
@@ -333,6 +340,12 @@ const MainApp: React.FC = () => {
           onClose={() => setLightboxData(null)}
         />
       )}
+
+      {/* Direct Android APK Download & QR Code Modal */}
+      <DownloadAppModal
+        isOpen={isDownloadOpen}
+        onClose={() => setIsDownloadOpen(false)}
+      />
 
       {/* Modern PWA Install Bottom Sheet Popup */}
       <PwaInstallPrompt

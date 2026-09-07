@@ -1,45 +1,47 @@
 import React, { useState } from 'react';
-import { Download, X, Sparkles, Smartphone, WifiOff, Share, PlusSquare, Check } from 'lucide-react';
+import { Download, X, Smartphone, Bell, Zap, Share, PlusSquare, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 interface PwaInstallPromptProps {
   isOpen: boolean;
   isIOS: boolean;
-  onInstall: () => Promise<boolean>;
+  onInstall?: () => Promise<boolean>;
   onDismiss: () => void;
+  apkUrl?: string;
+  latestVersion?: string;
 }
+
+const DEFAULT_APK_URL = 'https://github.com/tgmind/UniMap/releases/latest/download/whitevault-release.apk';
 
 export const PwaInstallPrompt: React.FC<PwaInstallPromptProps> = ({
   isOpen,
   isIOS,
-  onInstall,
   onDismiss,
+  apkUrl = DEFAULT_APK_URL,
+  latestVersion = '1.0.0',
 }) => {
-  const [isInstalling, setIsInstalling] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [downloadStarted, setDownloadStarted] = useState(false);
   const [showIosGuide, setShowIosGuide] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleInstallClick = async () => {
+  const handleDownloadClick = () => {
     if (isIOS) {
       setShowIosGuide(true);
       return;
     }
 
-    setIsInstalling(true);
-    try {
-      const installed = await onInstall();
-      if (installed) {
-        setIsSuccess(true);
-        setTimeout(() => {
-          onDismiss();
-        }, 1500);
-      }
-    } catch (err) {
-      console.error('PWA install error:', err);
-    } finally {
-      setIsInstalling(false);
-    }
+    setDownloadStarted(true);
+    const a = document.createElement('a');
+    a.href = apkUrl || '/download';
+    a.download = 'whitevault-release.apk';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    // Auto dismiss after 6 seconds
+    setTimeout(() => {
+      onDismiss();
+    }, 6000);
   };
 
   return (
@@ -57,7 +59,7 @@ export const PwaInstallPrompt: React.FC<PwaInstallPromptProps> = ({
 
         {/* Header with App Logo, Title & Close */}
         <div className="flex items-start gap-3.5">
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-[#2481CC] to-[#50A7EA] p-0.5 shadow-md shadow-[#2481CC]/25 flex items-center justify-center shrink-0">
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 p-0.5 shadow-md shadow-emerald-500/25 flex items-center justify-center shrink-0">
             <div className="w-full h-full bg-white dark:bg-[#18222D] rounded-[14px] flex items-center justify-center">
               <img src="/logo.svg" alt="White Vault" className="w-7 h-7" />
             </div>
@@ -66,14 +68,15 @@ export const PwaInstallPrompt: React.FC<PwaInstallPromptProps> = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-base text-slate-900 dark:text-white tracking-tight">
-                Install White Vault
+                {isIOS ? 'Install White Vault' : 'White Vault for Android'}
               </h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#2481CC]/10 text-[#2481CC] dark:bg-[#50A7EA]/20 dark:text-[#50A7EA] uppercase tracking-wider">
-                App
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 font-mono">
+                v{latestVersion}
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-              Universal cross-device knowledge vault & study ecosystem.
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 inline shrink-0" />
+              <span>{isIOS ? 'Add to home screen' : 'Signed Native APK • Real-time Push'}</span>
             </p>
           </div>
 
@@ -89,23 +92,36 @@ export const PwaInstallPrompt: React.FC<PwaInstallPromptProps> = ({
         {/* Feature Highlights */}
         <div className="grid grid-cols-3 gap-2 py-1">
           <div className="flex flex-col items-center text-center p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-            <Smartphone className="w-4 h-4 text-[#2481CC] dark:text-[#50A7EA] mb-1 stroke-[2.2]" />
+            <Bell className="w-4 h-4 text-emerald-500 mb-1 stroke-[2.2]" />
+            <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">Push Alerts</span>
+            <span className="text-[9px] text-slate-400 leading-tight">Card notifications</span>
+          </div>
+
+          <div className="flex flex-col items-center text-center p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+            <Smartphone className="w-4 h-4 text-teal-500 mb-1 stroke-[2.2]" />
             <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">Fullscreen</span>
-            <span className="text-[9px] text-slate-400 leading-tight">No URL bars</span>
+            <span className="text-[9px] text-slate-400 leading-tight">Phone & tablet</span>
           </div>
 
           <div className="flex flex-col items-center text-center p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-            <WifiOff className="w-4 h-4 text-[#2481CC] dark:text-[#50A7EA] mb-1 stroke-[2.2]" />
+            <Zap className="w-4 h-4 text-amber-500 mb-1 stroke-[2.2]" />
             <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">Offline Vault</span>
-            <span className="text-[9px] text-slate-400 leading-tight">Always ready</span>
-          </div>
-
-          <div className="flex flex-col items-center text-center p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-            <Sparkles className="w-4 h-4 text-[#2481CC] dark:text-[#50A7EA] mb-1 stroke-[2.2]" />
-            <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">Instant Sync</span>
-            <span className="text-[9px] text-slate-400 leading-tight">Cross-device</span>
+            <span className="text-[9px] text-slate-400 leading-tight">0ms instant speed</span>
           </div>
         </div>
+
+        {/* Download Feedback / Install Tips */}
+        {downloadStarted && (
+          <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-slate-700 dark:text-slate-200 text-xs space-y-1 animate-in fade-in">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Download started!</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Tap the download notification on your phone and choose <strong>Install</strong>.
+            </p>
+          </div>
+        )}
 
         {/* iOS Step-by-Step Guide */}
         {showIosGuide && (
@@ -134,17 +150,14 @@ export const PwaInstallPrompt: React.FC<PwaInstallPromptProps> = ({
           </button>
 
           <button
-            onClick={handleInstallClick}
-            disabled={isInstalling}
-            className="flex-1 px-5 py-2.5 rounded-xl bg-[#2481CC] hover:bg-[#1E70B0] text-white text-xs font-bold shadow-md shadow-[#2481CC]/25 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+            onClick={handleDownloadClick}
+            className="flex-1 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold shadow-md shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
           >
-            {isSuccess ? (
+            {downloadStarted ? (
               <>
-                <Check className="w-4 h-4 stroke-[2.5]" />
-                <span>Installed!</span>
+                <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                <span>Downloading...</span>
               </>
-            ) : isInstalling ? (
-              <span>Installing...</span>
             ) : isIOS ? (
               <>
                 <Download className="w-4 h-4 stroke-[2.5]" />
@@ -153,7 +166,7 @@ export const PwaInstallPrompt: React.FC<PwaInstallPromptProps> = ({
             ) : (
               <>
                 <Download className="w-4 h-4 stroke-[2.5]" />
-                <span>Install App</span>
+                <span>Download APK (4.6 MB)</span>
               </>
             )}
           </button>
