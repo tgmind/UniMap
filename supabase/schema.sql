@@ -92,3 +92,32 @@ create policy "Users can manage own items" on public.items for all using (auth.u
 -- 6. Enable Realtime Publications
 alter publication supabase_realtime add table public.items;
 alter publication supabase_realtime add table public.devices;
+
+-- 7. Storage Bucket & Policies for 'user-media' (100% Free Tier Media Storage)
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('user-media', 'user-media', true, 52428800)
+on conflict (id) do update set public = true;
+
+drop policy if exists "Authenticated users can upload media" on storage.objects;
+create policy "Authenticated users can upload media"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'user-media');
+
+drop policy if exists "Anyone can read user-media" on storage.objects;
+create policy "Anyone can read user-media"
+on storage.objects for select
+using (bucket_id = 'user-media');
+
+drop policy if exists "Users can update own media" on storage.objects;
+create policy "Users can update own media"
+on storage.objects for update
+to authenticated
+using (bucket_id = 'user-media');
+
+drop policy if exists "Users can delete own media" on storage.objects;
+create policy "Users can delete own media"
+on storage.objects for delete
+to authenticated
+using (bucket_id = 'user-media');
+
