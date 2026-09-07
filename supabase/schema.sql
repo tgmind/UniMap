@@ -89,9 +89,23 @@ create policy "Users can manage own devices" on public.devices for all using (au
 drop policy if exists "Users can manage own items" on public.items;
 create policy "Users can manage own items" on public.items for all using (auth.uid() = user_id);
 
--- 6. Enable Realtime Publications
-alter publication supabase_realtime add table public.items;
-alter publication supabase_realtime add table public.devices;
+-- 6. Enable Realtime Publications (Idempotent: safely checks if already added)
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'items'
+  ) then
+    alter publication supabase_realtime add table public.items;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'devices'
+  ) then
+    alter publication supabase_realtime add table public.devices;
+  end if;
+end $$;
 
 -- 7. Storage Bucket & Policies for 'user-media' (100% Free Tier Media Storage)
 insert into storage.buckets (id, name, public, file_size_limit)
