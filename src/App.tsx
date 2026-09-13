@@ -5,7 +5,6 @@ import { ItemProvider } from './context/ItemContext';
 import { Header } from './components/Header';
 import { BentoView } from './components/views/BentoView';
 import { TimelineView } from './components/views/TimelineView';
-import { CanvasView } from './components/views/CanvasView';
 import { AddItemModal } from './components/AddItemModal';
 import { StorageMeterModal } from './components/StorageMeterModal';
 import { FleetModal } from './components/FleetModal';
@@ -96,10 +95,7 @@ const MainApp: React.FC = () => {
   // Modern PWA Installation Hook
   const { isIOS, showInstallPrompt, promptInstall, dismissInstallPrompt } = usePwaInstall();
 
-  // Mobile bottom navigation compact/expanded state
-  const [isBottomNavExpanded, setIsBottomNavExpanded] = useState(false);
-
-  // Synchronized intelligent auto-hide for top header & mobile bottom navigation
+  // Synchronized intelligent auto-hide for top header
   const [isChromeVisible, setIsChromeVisible] = useState(true);
   const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -138,9 +134,8 @@ const MainApp: React.FC = () => {
       const isScrollingUp = currentScrollY < lastScrollY - 8;
 
       if (isScrollingDown) {
-        // Hides top header and compacts bottom nav for full immersive viewing
+        // Hides top header for full immersive viewing
         hideChrome();
-        setIsBottomNavExpanded(false);
       } else if (isScrollingUp) {
         // Deliberate scroll up: reveal header
         wakeChrome(3500);
@@ -175,7 +170,6 @@ const MainApp: React.FC = () => {
         wakeChrome(3500);
       } else if (e.deltaY > 12) {
         hideChrome();
-        setIsBottomNavExpanded(false);
       }
     };
 
@@ -259,7 +253,7 @@ const MainApp: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen ${viewMode === 'canvas' ? 'bg-background' : 'telegram-canvas'} text-text-main flex flex-col selection:bg-primary selection:text-white`}>
+    <div className="min-h-screen telegram-canvas text-text-main flex flex-col selection:bg-primary selection:text-white">
       {/* Top Navbar */}
       <Header
         viewMode={viewMode}
@@ -275,19 +269,12 @@ const MainApp: React.FC = () => {
         onHideChrome={hideChrome}
       />
 
-      {/* Main Content Area: Edge-to-edge full screen for Canvas, safe-area padded container for Bento/Timeline */}
-      <main
-        className={
-          viewMode === 'canvas'
-            ? 'fixed inset-0 w-full h-full overflow-hidden'
-            : 'flex-1 w-full mx-auto pt-[calc(3.5rem+env(safe-area-inset-top))] sm:pt-[calc(4rem+env(safe-area-inset-top))] py-2 sm:py-4 pb-20 md:pb-8'
-        }
-      >
+      {/* Main Content Area: safe-area padded container for Bento/Timeline */}
+      <main className="flex-1 w-full mx-auto pt-[calc(3.5rem+env(safe-area-inset-top))] sm:pt-[calc(4rem+env(safe-area-inset-top))] py-2 sm:py-4 pb-24 md:pb-8">
         {viewMode === 'bento' && (
           <BentoView
             onOpenAddModal={() => setIsAddOpen(true)}
             onOpenMedia={(url, title, item) => setLightboxData({ url, title, item })}
-            isNavVisible={isBottomNavExpanded}
           />
         )}
         {viewMode === 'timeline' && (
@@ -295,25 +282,15 @@ const MainApp: React.FC = () => {
             onOpenMedia={(url, title, item) => setLightboxData({ url, title, item })}
           />
         )}
-        {viewMode === 'canvas' && (
-          <CanvasView
-            onOpenMedia={(url, title, item) => setLightboxData({ url, title, item })}
-            onOpenAddModal={() => setIsAddOpen(true)}
-            isNavVisible={isBottomNavExpanded}
-            isHeaderVisible={isChromeVisible}
-          />
-        )}
       </main>
 
-      {/* Ergonomic Mobile Bottom Nav & Floating Action Button */}
+      {/* Permanent Always-Visible Mobile Bottom Nav */}
       <MobileBottomNav
         viewMode={viewMode}
         setViewMode={setViewMode}
         onOpenAddModal={() => setIsAddOpen(true)}
         onOpenFleetModal={handleOpenFleet}
         onOpenStorageModal={() => setIsStorageOpen(true)}
-        isExpanded={isBottomNavExpanded}
-        onExpandChange={setIsBottomNavExpanded}
       />
 
       {/* Modals */}

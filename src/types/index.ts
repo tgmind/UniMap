@@ -72,7 +72,7 @@ export interface StorageQuota {
   };
 }
 
-export type ViewMode = 'canvas' | 'bento' | 'timeline';
+export type ViewMode = 'bento' | 'timeline';
 
 export interface UserProfile {
   id: string;

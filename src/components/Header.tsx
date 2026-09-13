@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Compass,
   LayoutGrid,
   Clock,
   Search,
@@ -245,17 +244,6 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Clock className="w-3.5 h-3.5" />
               <span>Timeline</span>
-            </button>
-            <button
-              onClick={() => setViewMode('canvas')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                viewMode === 'canvas'
-                  ? 'bg-surface text-text-main shadow-sm'
-                  : 'text-text-muted hover:text-text-main'
-              }`}
-            >
-              <Compass className="w-3.5 h-3.5" />
-              <span>Canvas</span>
             </button>
           </nav>
         </div>

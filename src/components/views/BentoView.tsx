@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { ItemCard } from '../ItemCard';
+import { CompactPinnedCards } from '../CompactPinnedCards';
 import { MessengerComposer } from '../MessengerComposer';
 import { useItems } from '../../context/ItemContext';
 import { UniItem } from '../../types';
-import { Sparkles, Plus, Pin, ChevronDown } from 'lucide-react';
+import { Sparkles, Plus, ChevronDown } from 'lucide-react';
 
 interface BentoViewProps {
   onOpenAddModal: () => void;
   onOpenMedia: (url: string, title: string, item?: UniItem) => void;
-  isNavVisible?: boolean;
 }
 
 interface DateGroup {
@@ -20,7 +20,6 @@ interface DateGroup {
 export const BentoView: React.FC<BentoViewProps> = ({
   onOpenAddModal,
   onOpenMedia,
-  isNavVisible = true,
 }) => {
   const { items, searchQuery } = useItems();
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -128,23 +127,12 @@ export const BentoView: React.FC<BentoViewProps> = ({
       {/* Telegram Message Stream with Distant Background & 5% Side Margins */}
       {filtered.length > 0 ? (
         <div className="space-y-5 pb-2 px-[5%] sm:px-6 max-w-4xl mx-auto">
-          {/* Pinned Messages Section */}
+          {/* Compact Horizontal Pinned Messages Section with Bluish Layout */}
           {pinnedItems.length > 0 && (
-            <section className="space-y-3">
-              {/* Telegram Center Date / Pinned Pill */}
-              <div className="flex justify-center my-2">
-                <span className="px-3.5 py-1 rounded-full text-xs font-medium bg-[#2481CC] text-white shadow-xs select-none flex items-center gap-1.5">
-                  <Pin className="w-3 h-3" />
-                  <span>Pinned Messages ({pinnedItems.length})</span>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {pinnedItems.map((item) => (
-                  <ItemCard key={item.id} item={item} onOpenMedia={onOpenMedia} />
-                ))}
-              </div>
-            </section>
+            <CompactPinnedCards
+              items={pinnedItems}
+              onOpenMedia={onOpenMedia}
+            />
           )}
 
           {/* Chronological Date Groups with In-Flow Telegram Date Badges (Zero Overlap Collision) */}
@@ -194,20 +182,14 @@ export const BentoView: React.FC<BentoViewProps> = ({
           onClick={scrollToBottom}
           title="Scroll to bottom"
           aria-label="Scroll to bottom"
-          className={`fixed right-4 sm:right-8 z-30 w-11 h-11 rounded-full bg-white dark:bg-[#18222D] border border-slate-200/90 dark:border-white/10 shadow-xl flex items-center justify-center text-[#2481CC] dark:text-[#50A7EA] transition-all duration-300 hover:scale-110 active:scale-95 animate-fade-in group ${
-            isNavVisible ? 'bottom-[8.5rem] sm:bottom-24' : 'bottom-24 sm:bottom-24'
-          }`}
+          className="fixed right-4 sm:right-8 bottom-[8.5rem] sm:bottom-24 z-30 w-11 h-11 rounded-full bg-white dark:bg-[#18222D] border border-slate-200/90 dark:border-white/10 shadow-xl flex items-center justify-center text-[#2481CC] dark:text-[#50A7EA] transition-all duration-300 hover:scale-110 active:scale-95 animate-fade-in group"
         >
           <ChevronDown className="w-5 h-5 stroke-[2.5] group-hover:translate-y-0.5 transition-transform" />
         </button>
       )}
 
       {/* Pinned Bottom Telegram Input Bar */}
-      <div
-        className={`sticky z-20 pt-2 pb-1 px-[5%] sm:px-6 max-w-4xl mx-auto transition-all duration-300 ease-in-out ${
-          isNavVisible ? 'bottom-[4.75rem] sm:bottom-4' : 'bottom-8 sm:bottom-4'
-        }`}
-      >
+      <div className="sticky z-20 pt-2 pb-1 px-[5%] sm:px-6 max-w-4xl mx-auto bottom-[4.75rem] sm:bottom-4">
         <MessengerComposer />
       </div>
     </div>
