@@ -9,6 +9,7 @@ import {
   generateDefaultDeviceName,
   getDeviceToken,
 } from '../lib/deviceDetector';
+import { clearAllTombstones } from '../lib/tombstones';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -482,6 +483,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('unimap_auth_token');
     localStorage.removeItem('unimap_vault_cred');
     localStorage.removeItem('unimap_guest_mode');
+    clearAllTombstones();
     setUser(null);
     setDevices([]);
   };

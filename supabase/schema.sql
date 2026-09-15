@@ -107,6 +107,10 @@ begin
   end if;
 end $$;
 
+-- 6b. Ensure REPLICA IDENTITY FULL so WAL includes full records on updates and deletes
+alter table public.items replica identity full;
+alter table public.devices replica identity full;
+
 -- 7. Storage Bucket & Policies for 'user-media' (100% Free Tier Media Storage)
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('user-media', 'user-media', true, 52428800)

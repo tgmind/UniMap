@@ -6,6 +6,7 @@ import { useAuth } from './AuthContext';
 import { detectDeviceOS, generateDefaultDeviceName, getDeviceToken } from '../lib/deviceDetector';
 import { generateUUID } from '../lib/uuid';
 import { compressAndEncodeMedia } from '../lib/mediaStorage';
+import { getDeletedItemIds, recordDeletedItemId, isItemDeleted } from '../lib/tombstones';
 
 interface AddItemInput {
   type: ItemType;
@@ -81,8 +82,16 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedDevice, setSelectedDevice] = useState<string | 'all'>('all');
   const channelRef = useRef<any>(null);
 
-  // Broadcast helper to send instant peer-to-peer WebSocket updates to other devices
+  const tabSyncChannel = useMemo(() => {
+    return typeof window !== 'undefined' && 'BroadcastChannel' in window
+      ? new BroadcastChannel('whitevault_tab_sync')
+      : null;
+  }, []);
+
+  // Broadcast helper to send instant peer-to-peer WebSocket updates to other devices & local tabs
   const broadcastItemUpsert = (item: UniItem) => {
+    tabSyncChannel?.postMessage({ type: 'item_upsert', item });
+
     if (channelRef.current) {
       try {
         const itemWithSender: UniItem = {
@@ -93,11 +102,24 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sender_device_name: item.metadata?.sender_device_name || item.device_name,
           },
         };
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'item_upsert',
-          payload: itemWithSender,
-        }).catch((err: any) => console.warn('Broadcast item_upsert warning:', err));
+
+        const doSend = () => {
+          if (channelRef.current && channelRef.current.state === 'joined') {
+            channelRef.current
+              .send({
+                type: 'broadcast',
+                event: 'item_upsert',
+                payload: itemWithSender,
+              })
+              .catch((err: any) => console.warn('Broadcast item_upsert warning:', err));
+          }
+        };
+
+        if (channelRef.current.state === 'joined') {
+          doSend();
+        } else {
+          setTimeout(doSend, 400);
+        }
       } catch (e) {
         console.warn('Broadcast item_upsert error:', e);
       }
@@ -105,28 +127,67 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const broadcastItemDelete = (id: string) => {
+    tabSyncChannel?.postMessage({ type: 'item_delete', id });
+
     if (channelRef.current) {
       try {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'item_delete',
-          payload: { id },
-        }).catch((err: any) => console.warn('Broadcast item_delete warning:', err));
+        const doSend = () => {
+          if (channelRef.current && channelRef.current.state === 'joined') {
+            channelRef.current
+              .send({
+                type: 'broadcast',
+                event: 'item_delete',
+                payload: { id },
+              })
+              .catch((err: any) => console.warn('Broadcast item_delete warning:', err));
+          }
+        };
+
+        if (channelRef.current.state === 'joined') {
+          doSend();
+        } else {
+          setTimeout(doSend, 400);
+        }
       } catch (e) {
         console.warn('Broadcast item_delete error:', e);
       }
     }
   };
 
-  // 0ms instantaneous display from local IndexedDB with automatic fake cache purge
+  // Instant 0ms cross-tab synchronization within the same browser
+  useEffect(() => {
+    if (!tabSyncChannel) return;
+    const handleTabMessage = async (event: MessageEvent) => {
+      const data = event.data;
+      if (!data) return;
+
+      if (data.type === 'item_delete' && data.id) {
+        recordDeletedItemId(data.id);
+        setItems((prev) => prev.filter((i) => i.id !== data.id));
+        await localDb.items.delete(data.id);
+      } else if (data.type === 'item_upsert' && data.item) {
+        if (isItemDeleted(data.item.id)) return;
+        setItems((prev) => [data.item, ...prev.filter((i) => i.id !== data.item.id)]);
+        await localDb.items.put(data.item);
+      }
+    };
+
+    tabSyncChannel.addEventListener('message', handleTabMessage);
+    return () => {
+      tabSyncChannel.removeEventListener('message', handleTabMessage);
+    };
+  }, [tabSyncChannel]);
+
+  // 0ms instantaneous display from local IndexedDB with automatic fake cache & tombstone purge
   useEffect(() => {
     const loadLocal = async () => {
       try {
         const localItems = await localDb.items.orderBy('created_at').reverse().toArray();
+        const deletedIds = getDeletedItemIds();
 
-        // Immediately purge any fake sample data or items from other users so they never spoil cache
+        // Immediately purge any fake sample data, items from other users, or tombstones
         const garbage = localItems.filter(
-          (i) => isMockOrSampleItem(i) || (user && i.user_id !== user.id)
+          (i) => isMockOrSampleItem(i) || (user && i.user_id !== user.id) || deletedIds.has(i.id)
         );
         if (garbage.length > 0) {
           const garbageIds = garbage.map((g) => g.id);
@@ -136,7 +197,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const client = getSupabaseClient();
           if (client && user) {
             try {
-              await client.from('items').delete().in('id', garbageIds);
+              await client.from('items').delete().in('id', garbageIds).eq('user_id', user.id);
             } catch (e) {
               console.warn('Error pruning mock items from cloud in loadLocal:', e);
             }
@@ -144,7 +205,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         const validLocal = localItems.filter(
-          (i) => !isMockOrSampleItem(i) && (!user || i.user_id === user.id)
+          (i) => !isMockOrSampleItem(i) && (!user || i.user_id === user.id) && !deletedIds.has(i.id)
         );
         setItems(validLocal);
       } catch (err) {
@@ -156,7 +217,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadLocal();
   }, [user]);
 
-  // Fetch online items from Supabase database
+  // Fetch online items from Supabase database with cross-device deletion reconciliation
   const fetchOnline = async () => {
     const client = ensureClientAuth();
     if (!client || !user) return;
@@ -173,28 +234,82 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const cloudMocks = data.filter((c: any) => isMockOrSampleItem(c));
         if (cloudMocks.length > 0) {
           const mockIds = cloudMocks.map((c: any) => c.id);
-          await client.from('items').delete().in('id', mockIds);
+          await client.from('items').delete().in('id', mockIds).eq('user_id', user.id);
         }
 
         const cleanCloudData = data.filter((c: any) => !isMockOrSampleItem(c));
         const localExisting = await localDb.items.toArray();
         const localMap = new Map(localExisting.map((i) => [i.id, i]));
-        const cloudIds = new Set(cleanCloudData.map((c: any) => c.id));
+        const deletedIds = getDeletedItemIds();
 
-        // Retain only current user's valid local items that haven't synced to cloud yet
-        const localOnly = localExisting.filter(
-          (local) => local.user_id === user.id && !isMockOrSampleItem(local) && !cloudIds.has(local.id)
-        );
+        // 1. Purge from cloud any items that this device deleted offline / locally
+        const itemsToPurgeFromCloud: string[] = [];
+        const validCloudData = cleanCloudData.filter((item: any) => {
+          if (deletedIds.has(item.id)) {
+            itemsToPurgeFromCloud.push(item.id);
+            return false;
+          }
+          return true;
+        });
 
-        // Clean up any stale or sample items
-        const staleItems = localExisting.filter(
-          (local) => isMockOrSampleItem(local) || (local.user_id !== user.id && !cloudIds.has(local.id))
-        );
-        if (staleItems.length > 0) {
-          await localDb.items.bulkDelete(staleItems.map((i) => i.id));
+        if (itemsToPurgeFromCloud.length > 0) {
+          client
+            .from('items')
+            .delete()
+            .in('id', itemsToPurgeFromCloud)
+            .eq('user_id', user.id)
+            .then(
+              () => {},
+              (err: any) => console.warn('Cloud purge for tombstoned items error:', err)
+            );
         }
 
-        const mergedCloud: UniItem[] = cleanCloudData.map((cloudItem: UniItem) => {
+        const validCloudIds = new Set(validCloudData.map((c: any) => c.id));
+
+        // 2. Reconcile local items against cloud data:
+        // - If an item was previously synced (metadata.sync_status === 'synced') and is no longer in validCloudIds,
+        //   another device DELETED it! We must delete it from localDb!
+        // - If it has a tombstone, delete it from localDb!
+        // - Only retain items that are truly pending local offline creation.
+        const locallyStaleOrDeleted: string[] = [];
+        const localOnlyPending: UniItem[] = [];
+
+        for (const local of localExisting) {
+          if (isMockOrSampleItem(local) || local.user_id !== user.id || deletedIds.has(local.id)) {
+            locallyStaleOrDeleted.push(local.id);
+            continue;
+          }
+
+          if (validCloudIds.has(local.id)) {
+            // In cloud, will be merged via validCloudData
+            continue;
+          }
+
+          // Item is in localDb, but NOT in cloud:
+          if (local.metadata?.sync_status === 'synced') {
+            // Was previously synced, but missing from cloud -> DELETED ON ANOTHER DEVICE!
+            locallyStaleOrDeleted.push(local.id);
+            recordDeletedItemId(local.id);
+          } else if (local.metadata?.sync_status === 'local_only' || local.metadata?.sync_status === 'pending') {
+            // Truly created locally and pending cloud upload
+            localOnlyPending.push(local);
+          } else {
+            // Legacy / untracked item: if older than 10 mins and not in cloud, it was deleted
+            const ageMs = Date.now() - new Date(local.created_at).getTime();
+            if (ageMs > 10 * 60 * 1000) {
+              locallyStaleOrDeleted.push(local.id);
+              recordDeletedItemId(local.id);
+            } else {
+              localOnlyPending.push(local);
+            }
+          }
+        }
+
+        if (locallyStaleOrDeleted.length > 0) {
+          await localDb.items.bulkDelete(locallyStaleOrDeleted);
+        }
+
+        const mergedCloud: UniItem[] = validCloudData.map((cloudItem: UniItem) => {
           const local = localMap.get(cloudItem.id);
           const effectiveFileUrl =
             local?.file_url && (!cloudItem.file_url || cloudItem.file_url.startsWith('blob:'))
@@ -211,7 +326,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
         });
 
-        const merged: UniItem[] = [...mergedCloud, ...localOnly];
+        const merged: UniItem[] = [...mergedCloud, ...localOnlyPending];
         merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         setItems(merged);
@@ -222,24 +337,39 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Robust Auto-Sync Queue: retries any pending local-only items to guarantee 100% cloud sync
+  // Robust Auto-Sync Queue: retries any pending local-only items and cleans up tombstones
   const flushPendingSync = async () => {
     if (!user) return;
     const client = ensureClientAuth();
     if (!client) return;
 
     try {
+      // 1. Purge any tombstones from cloud
+      const deletedIds = Array.from(getDeletedItemIds());
+      if (deletedIds.length > 0) {
+        try {
+          await client.from('items').delete().in('id', deletedIds).eq('user_id', user.id);
+        } catch (e) {
+          console.warn('Pending delete sync error:', e);
+        }
+      }
+
+      // 2. Upload any pending local additions
       const allLocal = await localDb.items.toArray();
+      const currentDeleted = getDeletedItemIds();
       const pending = allLocal.filter(
         (it) =>
           it.user_id === user.id &&
           !isMockOrSampleItem(it) &&
-          (it.metadata?.sync_status === 'local_only' || !it.metadata?.sync_status)
+          !currentDeleted.has(it.id) &&
+          (it.metadata?.sync_status === 'local_only' || it.metadata?.sync_status === 'pending' || !it.metadata?.sync_status)
       );
 
       if (pending.length === 0) return;
 
       for (const item of pending) {
+        if (isItemDeleted(item.id)) continue;
+
         const payload: any = {
           id: item.id,
           user_id: user.id,
@@ -294,109 +424,106 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // User-scoped channel for private, instant cross-device synchronization
     const channel = client.channel(`unimap_sync_${user.id}`, {
       config: {
-        broadcast: { ack: true },
+        broadcast: { ack: true, self: false },
       },
     });
 
     channelRef.current = channel;
 
+    const handleItemUpsert = async (incoming: UniItem) => {
+      if (!incoming || !incoming.id) return;
+      if (isItemDeleted(incoming.id)) return;
+
+      const local = await localDb.items.get(incoming.id);
+      const effectiveItem: UniItem = {
+        ...incoming,
+        file_url:
+          local?.file_url && (!incoming.file_url || incoming.file_url.startsWith('blob:'))
+            ? local.file_url
+            : incoming.file_url || local?.file_url,
+        metadata: { ...incoming.metadata, sync_status: 'synced' as const },
+      };
+      setItems((prev) => [effectiveItem, ...prev.filter((i) => i.id !== effectiveItem.id)]);
+      await localDb.items.put(effectiveItem);
+
+      // Notify user if created on a different connected device
+      const myToken = getDeviceToken();
+      const senderToken = incoming.metadata?.sender_device_token;
+      if (!local && senderToken && senderToken !== myToken) {
+        window.dispatchEvent(
+          new CustomEvent('whitevault:new-card-notify', {
+            detail: {
+              id: incoming.id,
+              title: 'New Card added in White Vault account',
+              body: incoming.title || 'New card posted',
+              senderDevice: incoming.metadata?.sender_device_name || incoming.device_name || 'Connected Device',
+              itemId: incoming.id,
+            },
+          })
+        );
+      }
+    };
+
+    const handleItemDelete = async (deletedId: string) => {
+      if (!deletedId) return;
+      recordDeletedItemId(deletedId);
+      setItems((prev) => prev.filter((i) => i.id !== deletedId));
+      await localDb.items.delete(deletedId);
+    };
+
     channel
       .on('broadcast', { event: 'item_upsert' }, async ({ payload }) => {
-        if (!payload || !payload.id) return;
-        const incoming = payload as UniItem;
-        const local = await localDb.items.get(incoming.id);
-        const effectiveItem: UniItem = {
-          ...incoming,
-          file_url:
-            local?.file_url && (!incoming.file_url || incoming.file_url.startsWith('blob:'))
-              ? local.file_url
-              : incoming.file_url || local?.file_url,
-          metadata: { ...incoming.metadata, sync_status: 'synced' as const },
-        };
-        setItems((prev) => [effectiveItem, ...prev.filter((i) => i.id !== effectiveItem.id)]);
-        await localDb.items.put(effectiveItem);
-
-        // Notify user if created on a different connected device
-        const myToken = getDeviceToken();
-        const senderToken = incoming.metadata?.sender_device_token;
-        if (!local && senderToken && senderToken !== myToken) {
-          window.dispatchEvent(
-            new CustomEvent('whitevault:new-card-notify', {
-              detail: {
-                id: incoming.id,
-                title: 'New Card added in White Vault account',
-                body: incoming.title || 'New card posted',
-                senderDevice: incoming.metadata?.sender_device_name || incoming.device_name || 'Connected Device',
-                itemId: incoming.id,
-              },
-            })
-          );
-        }
+        if (!payload?.id) return;
+        await handleItemUpsert(payload as UniItem);
       })
       .on('broadcast', { event: 'item_delete' }, async ({ payload }) => {
         if (!payload?.id) return;
-        const deletedId = payload.id;
-        setItems((prev) => prev.filter((i) => i.id !== deletedId));
-        await localDb.items.delete(deletedId);
+        await handleItemDelete(payload.id);
       })
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'items', filter: `user_id=eq.${user.id}` },
+        { event: 'INSERT', schema: 'public', table: 'items', filter: `user_id=eq.${user.id}` },
         async (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newItem = payload.new as UniItem;
-            const local = await localDb.items.get(newItem.id);
-            const effectiveItem: UniItem = {
-              ...newItem,
-              file_url:
-                local?.file_url && (!newItem.file_url || newItem.file_url.startsWith('blob:'))
-                  ? local.file_url
-                  : newItem.file_url || local?.file_url,
-              metadata: { ...newItem.metadata, sync_status: 'synced' as const },
-            };
-            setItems((prev) => [effectiveItem, ...prev.filter((i) => i.id !== newItem.id)]);
-            await localDb.items.put(effectiveItem);
+          if (!payload.new) return;
+          await handleItemUpsert(payload.new as UniItem);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'items', filter: `user_id=eq.${user.id}` },
+        async (payload) => {
+          if (!payload.new) return;
+          const updated = payload.new as UniItem;
+          if (isItemDeleted(updated.id)) return;
 
-            // Notify user if created on a different connected device
-            const myToken = getDeviceToken();
-            const senderToken = newItem.metadata?.sender_device_token;
-            if (!local && senderToken && senderToken !== myToken) {
-              window.dispatchEvent(
-                new CustomEvent('whitevault:new-card-notify', {
-                  detail: {
-                    id: newItem.id,
-                    title: 'New Card added in White Vault account',
-                    body: newItem.title || 'New card posted',
-                    senderDevice: newItem.metadata?.sender_device_name || newItem.device_name || 'Connected Device',
-                    itemId: newItem.id,
-                  },
-                })
-              );
-            }
-          }
- else if (payload.eventType === 'UPDATE') {
-            const updated = payload.new as UniItem;
-            const local = await localDb.items.get(updated.id);
-            const effectiveItem: UniItem = {
-              ...updated,
-              file_url:
-                local?.file_url && (!updated.file_url || updated.file_url.startsWith('blob:'))
-                  ? local.file_url
-                  : updated.file_url || local?.file_url,
-              metadata: { ...updated.metadata, sync_status: 'synced' as const },
-            };
-            setItems((prev) => prev.map((i) => (i.id === effectiveItem.id ? effectiveItem : i)));
-            await localDb.items.put(effectiveItem);
-          } else if (payload.eventType === 'DELETE') {
-            const deletedId = (payload.old as { id: string }).id;
-            setItems((prev) => prev.filter((i) => i.id !== deletedId));
-            await localDb.items.delete(deletedId);
+          const local = await localDb.items.get(updated.id);
+          const effectiveItem: UniItem = {
+            ...updated,
+            file_url:
+              local?.file_url && (!updated.file_url || updated.file_url.startsWith('blob:'))
+                ? local.file_url
+                : updated.file_url || local?.file_url,
+            metadata: { ...updated.metadata, sync_status: 'synced' as const },
+          };
+          setItems((prev) => prev.map((i) => (i.id === effectiveItem.id ? effectiveItem : i)));
+          await localDb.items.put(effectiveItem);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'items' },
+        async (payload) => {
+          const deletedId = (payload.old as { id: string })?.id;
+          if (deletedId) {
+            await handleItemDelete(deletedId);
           }
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           flushPendingSync();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn(`Realtime channel status: ${status}, retrying connection...`);
         }
       });
 
@@ -404,10 +531,16 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleOnline = () => {
       fetchOnline();
       flushPendingSync();
+      if (channelRef.current && channelRef.current.state !== 'joined') {
+        channelRef.current.subscribe();
+      }
     };
     const handleFocus = () => {
       fetchOnline();
       flushPendingSync();
+      if (channelRef.current && channelRef.current.state !== 'joined') {
+        channelRef.current.subscribe();
+      }
     };
 
     window.addEventListener('online', handleOnline);
@@ -415,7 +548,13 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
     document.addEventListener('visibilitychange', handleFocus);
 
     const heartbeat = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchOnline();
+      }
       flushPendingSync();
+      if (channelRef.current && channelRef.current.state !== 'joined') {
+        channelRef.current.subscribe();
+      }
     }, 25000);
 
     return () => {
@@ -633,17 +772,27 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteItem = async (id: string) => {
     const itemToDelete = items.find((i) => i.id === id);
+
+    // 1. Immediately remove from React state (0ms UI latency)
     setItems((prev) => prev.filter((i) => i.id !== id));
+
+    // 2. Immediately remove from local IndexedDB
     await localDb.items.delete(id);
 
-    if (user) {
-      broadcastItemDelete(id);
-    }
+    // 3. Persist tombstone so background sync never resurrects it
+    recordDeletedItemId(id);
 
+    // 4. Broadcast instant delete to other tabs and connected devices
+    broadcastItemDelete(id);
+
+    // 5. Delete from Supabase cloud database and storage
     const client = ensureClientAuth();
     if (client && user) {
       try {
-        await client.from('items').delete().eq('id', id);
+        const { error } = await client.from('items').delete().eq('id', id).eq('user_id', user.id);
+        if (error) {
+          console.warn('Failed to delete item online:', error.message);
+        }
 
         if (itemToDelete?.file_name && user) {
           const ext = itemToDelete.file_name.split('.').pop();

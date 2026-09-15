@@ -67,4 +67,8 @@ create policy "Users can manage own items" on public.items for all using (auth.u
 -- Enable Realtime
 alter publication supabase_realtime add table public.items;
 alter publication supabase_realtime add table public.devices;
+
+-- Ensure full replica identity for instant real-time delete and update sync
+alter table public.items replica identity full;
+alter table public.devices replica identity full;
 `;

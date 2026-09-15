@@ -31,7 +31,7 @@ export interface UniItem {
     width?: number;
     height?: number;
     color?: string;
-    sync_status?: 'uploading' | 'synced' | 'local_only';
+    sync_status?: 'uploading' | 'synced' | 'local_only' | 'pending';
     sender_device_token?: string;
     sender_device_name?: string;
     [key: string]: any;
