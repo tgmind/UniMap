@@ -56,6 +56,7 @@ export function isMockOrSampleItem(item: any): boolean {
 interface ItemContextType {
   items: UniItem[];
   isLoading: boolean;
+  isSyncing: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   selectedType: ItemType | 'all';
@@ -77,6 +78,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user } = useAuth();
   const [items, setItems] = useState<UniItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<ItemType | 'all'>('all');
   const [selectedDevice, setSelectedDevice] = useState<string | 'all'>('all');
@@ -917,12 +919,20 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshItems = async () => {
-    if (user) {
-      await fetchOnline();
-      await flushPendingSync();
-    } else {
-      const local = await localDb.items.orderBy('created_at').reverse().toArray();
-      setItems(local.filter((i) => !isMockOrSampleItem(i)));
+    setIsSyncing(true);
+    try {
+      if (user) {
+        await fetchOnline();
+        await flushPendingSync();
+        if (channelRef.current && channelRef.current.state !== 'joined') {
+          channelRef.current.subscribe();
+        }
+      } else {
+        const local = await localDb.items.orderBy('created_at').reverse().toArray();
+        setItems(local.filter((i) => !isMockOrSampleItem(i)));
+      }
+    } finally {
+      setTimeout(() => setIsSyncing(false), 500);
     }
   };
 
@@ -931,6 +941,7 @@ export const ItemProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         items,
         isLoading,
+        isSyncing,
         searchQuery,
         setSearchQuery,
         selectedType,

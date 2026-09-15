@@ -13,6 +13,8 @@ import {
   SlidersHorizontal,
   Download,
   QrCode,
+  RefreshCw,
+  Check,
 } from 'lucide-react';
 import { ViewMode } from '../types';
 import { useItems } from '../context/ItemContext';
@@ -50,14 +52,25 @@ export const Header: React.FC<HeaderProps> = ({
   onHideChrome,
 }) => {
   const isNative = Capacitor.isNativePlatform();
-  const { searchQuery, setSearchQuery, storageQuota } = useItems();
+  const { searchQuery, setSearchQuery, storageQuota, refreshItems, isSyncing } = useItems();
   const { user, signOut, devices } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { isInstallable, promptInstall } = usePwaInstall();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [justSynced, setJustSynced] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleManualSync = async () => {
+    try {
+      await refreshItems();
+      setJustSynced(true);
+      setTimeout(() => setJustSynced(false), 1500);
+    } catch (e) {
+      console.warn('Manual sync warning:', e);
+    }
+  };
 
   const isHeaderActive = showMobileSearch || showUserMenu || Boolean(searchQuery.trim());
   const effectiveVisible = isChromeVisible !== undefined ? isChromeVisible : isVisible;
@@ -248,9 +261,9 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
         </div>
 
-        {/* Center: Desktop Search Field */}
-        <div className="hidden md:flex flex-1 max-w-md mx-2">
-          <div className="relative w-full">
+        {/* Center: Desktop Search Field & Floating Sync Button */}
+        <div className="hidden md:flex flex-1 max-w-md mx-2 items-center gap-2">
+          <div className="relative flex-1">
             <Search className="w-4 h-4 text-text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -263,6 +276,25 @@ export const Header: React.FC<HeaderProps> = ({
               ⌘K
             </kbd>
           </div>
+
+          {/* Desktop Floating Sync Button beside Search */}
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            title={isSyncing ? 'Syncing White Vault...' : justSynced ? 'Synced!' : 'Sync Vault with Cloud'}
+            className={`p-2 rounded-xl border shadow-xs transition-all flex items-center justify-center active:scale-95 disabled:opacity-75 ${
+              justSynced
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                : 'text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-hover border-border'
+            }`}
+            aria-label="Sync White Vault"
+          >
+            {justSynced ? (
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-primary' : ''}`} />
+            )}
+          </button>
         </div>
 
         {/* Right Section: Controls & Actions */}
@@ -278,6 +310,25 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <Search className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Mobile Floating Sync Button beside Search */}
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            title={isSyncing ? 'Syncing White Vault...' : justSynced ? 'Synced!' : 'Sync Vault with Cloud'}
+            className={`md:hidden p-2 rounded-xl border shadow-xs transition-all flex items-center justify-center active:scale-95 disabled:opacity-75 ${
+              justSynced
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                : 'text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-hover border-border'
+            }`}
+            aria-label="Sync White Vault"
+          >
+            {justSynced ? (
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-primary' : ''}`} />
+            )}
           </button>
 
           {/* Desktop Storage Usage Meter */}
@@ -434,8 +485,8 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Expandable Search Drawer */}
       {showMobileSearch && (
-        <div className="md:hidden px-4 pb-3 pt-1 animate-fade-in">
-          <div className="relative w-full">
+        <div className="md:hidden px-4 pb-3 pt-1 animate-fade-in flex items-center gap-2">
+          <div className="relative flex-1">
             <Search className="w-4 h-4 text-text-faint absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -454,6 +505,23 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
           </div>
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            title={isSyncing ? 'Syncing...' : justSynced ? 'Synced!' : 'Sync Vault'}
+            className={`p-2 rounded-xl border shadow-sm transition-all flex items-center justify-center active:scale-95 disabled:opacity-75 shrink-0 ${
+              justSynced
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                : 'text-text-muted hover:text-text-main bg-surface-elevated hover:bg-surface-hover border-border'
+            }`}
+            aria-label="Sync White Vault"
+          >
+            {justSynced ? (
+              <Check className="w-4 h-4 text-emerald-500" />
+            ) : (
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-primary' : ''}`} />
+            )}
+          </button>
         </div>
       )}
     </header>
